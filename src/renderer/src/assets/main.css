@@ -1,0 +1,335 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/raleway";
+
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: oklch(0.985 0.002 220);
+  --foreground: oklch(0.205 0.01 230);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.205 0.01 230);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.205 0.01 230);
+  --primary: oklch(0.51 0.09 229);
+  --primary-foreground: oklch(0.985 0.003 220);
+  --secondary: oklch(0.955 0.005 220);
+  --secondary-foreground: oklch(0.275 0.01 230);
+  --muted: oklch(0.962 0.004 220);
+  --muted-foreground: oklch(0.52 0.015 230);
+  --accent: oklch(0.94 0.008 220);
+  --accent-foreground: oklch(0.275 0.01 230);
+  --destructive: oklch(0.58 0.22 28);
+  --border: oklch(0.91 0.006 220);
+  --input: oklch(0.91 0.006 220);
+  --ring: oklch(0.7 0.02 225);
+  --chart-1: oklch(0.76 0.12 228);
+  --chart-2: oklch(0.66 0.14 233);
+  --chart-3: oklch(0.57 0.13 238);
+  --chart-4: oklch(0.49 0.12 241);
+  --chart-5: oklch(0.42 0.11 242);
+  --radius: 0.45rem;
+  --sidebar: oklch(0.975 0.003 220);
+  --sidebar-foreground: oklch(0.205 0.01 230);
+  --sidebar-primary: oklch(0.56 0.11 227);
+  --sidebar-primary-foreground: oklch(0.985 0.003 220);
+  --sidebar-accent: oklch(0.948 0.006 220);
+  --sidebar-accent-foreground: oklch(0.25 0.01 230);
+  --sidebar-border: oklch(0.9 0.006 220);
+  --sidebar-ring: oklch(0.7 0.02 225);
+}
+
+.dark {
+  --background: oklch(0.17 0.01 230);
+  --foreground: oklch(0.96 0.004 220);
+  --card: oklch(0.21 0.012 230);
+  --card-foreground: oklch(0.96 0.004 220);
+  --popover: oklch(0.21 0.012 230);
+  --popover-foreground: oklch(0.96 0.004 220);
+  --primary: oklch(0.67 0.12 221);
+  --primary-foreground: oklch(0.21 0.02 232);
+  --secondary: oklch(0.27 0.01 232);
+  --secondary-foreground: oklch(0.96 0.004 220);
+  --muted: oklch(0.25 0.012 230);
+  --muted-foreground: oklch(0.7 0.015 224);
+  --accent: oklch(0.3 0.015 231);
+  --accent-foreground: oklch(0.96 0.004 220);
+  --destructive: oklch(0.68 0.19 23);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.56 0.02 224);
+  --chart-1: oklch(0.76 0.12 228);
+  --chart-2: oklch(0.66 0.14 233);
+  --chart-3: oklch(0.57 0.13 238);
+  --chart-4: oklch(0.49 0.12 241);
+  --chart-5: oklch(0.42 0.11 242);
+  --sidebar: oklch(0.2 0.012 230);
+  --sidebar-foreground: oklch(0.96 0.004 220);
+  --sidebar-primary: oklch(0.71 0.13 217);
+  --sidebar-primary-foreground: oklch(0.25 0.03 232);
+  --sidebar-accent: oklch(0.28 0.013 230);
+  --sidebar-accent-foreground: oklch(0.96 0.004 220);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.56 0.02 224);
+}
+
+@theme inline {
+  --font-sans: 'Inter Variable', sans-serif;
+  --font-heading: 'Raleway Variable', sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+  --animate-shimmer: shimmer 3s ease-in-out infinite;
+  --animate-message-in: message-in 0.25s cubic-bezier(0.25, 1, 0.5, 1) both;
+  --animate-fade-in: fade-in 0.2s cubic-bezier(0.25, 1, 0.5, 1) both;
+  --animate-fade-in-up: fade-in-up 0.2s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(400%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply h-full overflow-x-hidden;
+  }
+
+  body,
+  #root {
+    @apply h-full overflow-x-hidden;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  button {
+    @apply cursor-default;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+}
+
+@layer utilities {
+  .drag-region {
+    -webkit-app-region: drag;
+  }
+
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  .terminal-host,
+  .terminal-host .xterm,
+  .terminal-host .xterm-viewport,
+  .terminal-host .xterm-screen,
+  .terminal-host .xterm-scroll-area {
+    background: #000;
+  }
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Streamdown Code Blocks ─── */
+/* Distill: flatten nested containers into one clean surface */
+/* Polish: tighten spacing, unify radius, subtle interactions */
+
+[data-streamdown="code-block"] {
+  position: relative;
+  gap: 0 !important;
+  padding: 0 !important;
+  border-radius: var(--radius-lg) !important;
+  background: var(--card) !important;
+  overflow: hidden;
+}
+
+.dark [data-streamdown="code-block"] {
+  background: var(--sidebar) !important;
+}
+
+/* Header: compact, integrated with the code body */
+[data-streamdown="code-block-header"] {
+  height: auto !important;
+  padding: 0.375rem 0.75rem !important;
+  font-size: 11px !important;
+  opacity: 0.5;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Actions wrapper: collapse the spacer div that causes the top gap */
+[data-streamdown="code-block"] > div:has(> [data-streamdown="code-block-actions"]) {
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  height: auto !important;
+  margin: 0 !important;
+  z-index: 10;
+}
+
+/* Code body: remove inner border — no card inside card */
+[data-streamdown="code-block-body"] {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 0.75rem 1rem !important;
+  font-size: 13px !important;
+}
+
+/* Actions: subtle, appear on hover */
+[data-streamdown="code-block-actions"] {
+  border: none !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  padding: 0.25rem !important;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+[data-streamdown="code-block"]:hover [data-streamdown="code-block-actions"] {
+  opacity: 1;
+}
+
+/* Action buttons: smaller, subtler */
+[data-streamdown="code-block-copy-button"],
+[data-streamdown="code-block-download-button"] {
+  padding: 0.25rem !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+[data-streamdown="code-block-copy-button"]:hover,
+[data-streamdown="code-block-download-button"]:hover {
+  background: var(--muted) !important;
+}
+
+/* Line numbers: tighter */
+[data-streamdown="code-block-body"] code span::before {
+  width: 1.25rem !important;
+  margin-right: 0.75rem !important;
+  font-size: 11px !important;
+}
+
+/* Kill the streaming caret on code blocks —
+   Streamdown's outer wrapper applies after:content-[var(--streamdown-caret)]
+   to its last direct child. When that child is a code block, a ▋ character
+   appears as a visible bar. Target the element itself, not children. */
+[data-streamdown="code-block"]::before,
+[data-streamdown="code-block"]::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Prevent Shiki theme background from peeking through rounded corners.
+   The <pre> gets a bg from --sdm-bg (Shiki theme) which differs slightly
+   from the container bg, creating visible artifacts at border-radius edges. */
+[data-streamdown="code-block-body"] pre {
+  background: transparent !important;
+}
+
+/* Monaco editor — match app background */
+.monaco-editor,
+.monaco-editor .monaco-editor-background,
+.monaco-editor .margin {
+  background-color: var(--background) !important;
+}
+
+/* Override react-diff-viewer's inline overflowX:hidden so the
+   table can be wider than the container and scroll. */
+.diff-viewer-scroll > div {
+  overflow-x: visible !important;
+}
+
+/* Ensure pre tags inside the diff don't wrap */
+.diff-viewer-scroll pre {
+  white-space: pre !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+}
+
+
