@@ -27,10 +27,16 @@ export function shouldRenderStreamingMessage(
     return false
   }
 
+  // Check if ANY committed assistant already has this timestamp.
+  // The previous logic only checked the LAST committed assistant, which broke
+  // during tool-call loops: message_end commits assistant A, then message_start
+  // immediately adds an empty assistant B.  If the streaming ghost of A hasn't
+  // been cleared yet, comparing against B (different timestamp) made A reappear
+  // alongside the committed version — doubling content height for one frame.
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const committed = messages[i]
     if (committed.role !== 'assistant') continue
-    return committed.timestamp !== streamingMessage.timestamp
+    if (committed.timestamp === streamingMessage.timestamp) return false
   }
 
   return true

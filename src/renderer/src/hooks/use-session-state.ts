@@ -39,7 +39,6 @@ export function useSessionState(
     let pendingClear = false
     let pendingEnd = false
     let endTimeoutId: ReturnType<typeof setTimeout> | null = null
-    let clearFrameId: number | null = null
     let streamingFrameId: number | null = null
     let pendingStreamingMessage: AgentMessage | null = null
     let renderedStreamingMessage: AgentMessage | null = null
@@ -63,20 +62,6 @@ export function useSessionState(
         window.cancelAnimationFrame(streamingFrameId)
         streamingFrameId = null
       }
-      if (clearFrameId !== null) {
-        window.cancelAnimationFrame(clearFrameId)
-        clearFrameId = null
-      }
-    }
-
-    const scheduleStreamingClear = (callback: () => void): void => {
-      if (clearFrameId !== null) {
-        window.cancelAnimationFrame(clearFrameId)
-      }
-      clearFrameId = window.requestAnimationFrame(() => {
-        clearFrameId = null
-        callback()
-      })
     }
 
     const unsubscribeUpdated = onSessionUpdated((nextSession) => {
@@ -91,14 +76,14 @@ export function useSessionState(
 
         // Clear streaming state in the SAME React batch as the committed
         // message update — no gap, no height collapse, no scroll jump.
+        // We clear synchronously (not deferred to rAF) so that both the
+        // committed message render and the streaming ghost removal happen
+        // in a single React render pass.  shouldRenderStreamingMessage()
+        // already prevents visual duplication within the same render.
         if (pendingClear) {
           pendingClear = false
-          // Let the committed assistant message paint first, then clear the
-          // temporary streaming ghost on the next frame for a smoother handoff.
-          scheduleStreamingClear(() => {
-            clearStreamingBuffer()
-            setStreamingMessage(null)
-          })
+          clearStreamingBuffer()
+          setStreamingMessage(null)
         }
         if (pendingEnd) {
           pendingEnd = false
@@ -106,12 +91,10 @@ export function useSessionState(
             clearTimeout(endTimeoutId)
             endTimeoutId = null
           }
-          scheduleStreamingClear(() => {
-            clearStreamingBuffer()
-            setIsLoading(false)
-            setIsStreaming(false)
-            setStreamingMessage(null)
-          })
+          clearStreamingBuffer()
+          setIsLoading(false)
+          setIsStreaming(false)
+          setStreamingMessage(null)
         }
       }
     })

@@ -77,23 +77,22 @@ export function SessionConversation(props: {
           }}
         >
           <div ref={contentRef} className="mx-auto flex min-h-full w-full max-w-[700px] flex-col">
-            {props.messages.length === 0 && !props.isStreaming && !props.isLoading ? (
+            {props.messages.length === 0 && !props.isStreaming && !props.isLoading && (
               <ConversationEmptyState
                 className="flex-1"
                 icon={<WaypointsIcon className="size-8" />}
                 title="New session"
                 description="Send your first message to start this session."
               />
-            ) : (
-              <div className="flex flex-col gap-4">
-                <PiMessages
-                  key={props.session.id}
-                  messages={props.messages}
-                  isStreaming={props.isStreaming}
-                  streamingMessage={props.streamingMessage}
-                />
-              </div>
             )}
+            <div className="flex flex-col gap-4">
+              <PiMessages
+                key={props.session.id}
+                messages={props.messages}
+                isStreaming={props.isStreaming}
+                streamingMessage={props.streamingMessage}
+              />
+            </div>
           </div>
         </div>
 
