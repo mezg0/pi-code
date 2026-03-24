@@ -3,6 +3,8 @@ import { GitCommitHorizontalIcon, PanelRightCloseIcon, PanelRightOpenIcon } from
 
 import { BranchPicker } from './branch-picker'
 
+import type { PanelImperativeHandle } from 'react-resizable-panels'
+
 import { Button } from '@/components/ui/button'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
@@ -136,6 +138,25 @@ function AppShellContent({
     : DEFAULT_TOOL_PANEL_SIZE
 
   const planVisible = hasPlan && currentPlanKey !== dismissedPlanKey
+
+  // Imperatively resize the tool panel when the project changes or the panel
+  // opens, so the PanelGroup doesn't need to remount (which would destroy the
+  // webview). We track previous values to distinguish "panel opened" from
+  // "user switched tabs" (the latter shouldn't trigger a resize).
+  const toolPanelRef = useRef<PanelImperativeHandle>(null)
+  const prevCwdRef = useRef(cwd)
+  const prevToolTabRef = useRef(activeToolTab)
+  useEffect(() => {
+    const cwdChanged = prevCwdRef.current !== cwd
+    const panelOpened = !prevToolTabRef.current && !!activeToolTab
+    prevCwdRef.current = cwd
+    prevToolTabRef.current = activeToolTab
+
+    if ((cwdChanged || panelOpened) && activeToolTab && toolPanelRef.current) {
+      const size = cwd ? loadProjectViewState(cwd).toolPanelSize : DEFAULT_TOOL_PANEL_SIZE
+      toolPanelRef.current.resize(size)
+    }
+  }, [cwd, activeToolTab])
 
   // Save tool panel size on user-initiated resize (skip the initial mount).
   const handleToolPanelResize = useCallback(
@@ -306,7 +327,6 @@ function AppShellContent({
       <div className="min-w-0 flex-1 overflow-hidden">
         {showPanelToggle ? (
           <ResizablePanelGroup
-            key={cwd}
             orientation="horizontal"
             className="min-w-0 overflow-hidden"
           >
@@ -324,6 +344,7 @@ function AppShellContent({
                 <ResizablePanel
                   defaultSize={toolPanelSize}
                   minSize={20}
+                  panelRef={toolPanelRef}
                   onResize={handleToolPanelResize}
                   className="min-w-0 overflow-hidden"
                 >

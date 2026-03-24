@@ -44,16 +44,6 @@ export function BrowserView({ id }: { id: string }): React.JSX.Element {
   const [url, setUrl] = useState(() => getStoredUrl(id))
   const hasUrl = !!url
 
-  // Re-sync state when the id (project) changes — the component stays mounted
-  // across project switches so useState initializers don't re-run.
-  const prevIdRef = useRef(id)
-  if (prevIdRef.current !== id) {
-    prevIdRef.current = id
-    const stored = getStoredUrl(id)
-    setInput(stored)
-    setUrl(stored)
-  }
-
   useEffect(() => {
     const webview = webviewRef.current
     if (!webview) return

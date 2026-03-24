@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import {
   CodeIcon,
   FileTextIcon,
@@ -76,6 +77,19 @@ export function ToolPanel({
   const visibleTabs = TOOL_TABS.filter((tab) => hasPlan || tab.key !== 'plan')
   const activeConfig = visibleTabs.find((tab) => tab.key === activeTab) ?? visibleTabs[0]!
 
+  // Track all project paths that have been visited so we can keep their
+  // BrowserView (webview) and TerminalView mounted across project switches,
+  // avoiding page reloads and terminal resets.
+  const [visitedCwds, setVisitedCwds] = useState<string[]>(() => (cwd ? [cwd] : []))
+  const visitedCwdsRef = useRef(visitedCwds)
+  visitedCwdsRef.current = visitedCwds
+  useEffect(() => {
+    if (cwd && !visitedCwdsRef.current.includes(cwd)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- adding newly visited cwd is intentional
+      setVisitedCwds((prev) => (prev.includes(cwd) ? prev : [...prev, cwd]))
+    }
+  }, [cwd])
+
   return (
     <div className="flex h-full min-w-0 flex-col overflow-hidden border-l border-border">
       <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-2">
@@ -116,16 +130,30 @@ export function ToolPanel({
             <FilesView cwd={cwd} />
           </div>
         )}
-        {cwd && (
-          <div className={activeTab === 'terminal' ? 'size-full bg-black' : 'sr-only'}>
-            <TerminalView id={`term:${cwd}`} cwd={cwd} />
+        {/* Render one TerminalView and BrowserView per visited project so they
+            stay alive across project switches (no webview reload / terminal reset). */}
+        {visitedCwds.map((projectCwd) => (
+          <div
+            key={`term:${projectCwd}`}
+            className={
+              activeTab === 'terminal' && projectCwd === cwd
+                ? 'size-full bg-black'
+                : 'sr-only'
+            }
+          >
+            <TerminalView id={`term:${projectCwd}`} cwd={projectCwd} />
           </div>
-        )}
-        {cwd && (
-          <div className={activeTab === 'browser' ? 'size-full' : 'sr-only'}>
-            <BrowserView id={`browser:${cwd}`} />
+        ))}
+        {visitedCwds.map((projectCwd) => (
+          <div
+            key={`browser:${projectCwd}`}
+            className={
+              activeTab === 'browser' && projectCwd === cwd ? 'size-full' : 'sr-only'
+            }
+          >
+            <BrowserView id={`browser:${projectCwd}`} />
           </div>
-        )}
+        ))}
 
         {!cwd && activeTab !== 'git' && activeTab !== 'files' && activeTab !== 'plan' && (
           <div className="flex size-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
