@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Outlet,
   createRootRoute,
@@ -24,6 +24,16 @@ import {
   type Session
 } from '@/lib/sessions'
 import { clearProjectViewState } from '@/lib/view-state'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog'
 
 import {
   hasUnseenSessionCompletion,
@@ -98,6 +108,26 @@ function RootComponent(): React.JSX.Element {
     await navigate({ to: '/sessions/$sessionId/overview', params: { sessionId: session.id } })
   }
 
+  // --- Worktree archive alert dialog state ---
+  const [worktreeArchiveDialog, setWorktreeArchiveDialog] = useState<{
+    session: Session
+    displayPath: string
+  } | null>(null)
+  const worktreeArchiveResolveRef = useRef<((shouldDelete: boolean) => void) | null>(null)
+
+  function promptWorktreeDelete(session: Session, displayPath: string): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
+      worktreeArchiveResolveRef.current = resolve
+      setWorktreeArchiveDialog({ session, displayPath })
+    })
+  }
+
+  function handleWorktreeDialogChoice(shouldDelete: boolean): void {
+    worktreeArchiveResolveRef.current?.(shouldDelete)
+    worktreeArchiveResolveRef.current = null
+    setWorktreeArchiveDialog(null)
+  }
+
   async function handleToggleArchiveSession(session: Session, archived: boolean): Promise<void> {
     // Worktree cleanup: if archiving a session that has a worktree, check if
     // it's the only session using that worktree and offer to delete it.
@@ -107,13 +137,9 @@ function RootComponent(): React.JSX.Element {
       )
       if (isOrphaned) {
         const displayPath = session.worktreePath.split('/').pop() ?? session.worktreePath
-        // eslint-disable-next-line no-restricted-globals
-        const shouldDelete = confirm(
-          `This session has a worktree at "${displayPath}".\n\nDelete the worktree too?`
-        )
+        const shouldDelete = await promptWorktreeDelete(session, displayPath)
         if (shouldDelete) {
           try {
-
             await window.git.removeWorktree(session.repoPath, session.worktreePath, true)
           } catch (err) {
             console.error('Failed to remove worktree:', err)
@@ -152,20 +178,50 @@ function RootComponent(): React.JSX.Element {
   )
 
   return (
-    <AppShell
-      projects={workspace.projects}
-      sessions={workspace.sessions}
-      activeSession={activeSession}
-      unreadSessionIds={unreadSessionIds}
-      title={isSettings ? 'Settings' : (activeSession?.title ?? 'Sessions')}
-      showPanelToggle={Boolean(activeSession) && !isSettings}
-      onAddProject={handleAddProject}
-      onRemoveProject={handleRemoveProject}
-      onCreateSession={handleCreateSession}
-      onToggleArchiveSession={handleToggleArchiveSession}
-    >
-      <Outlet />
-    </AppShell>
+    <>
+      <AppShell
+        projects={workspace.projects}
+        sessions={workspace.sessions}
+        activeSession={activeSession}
+        unreadSessionIds={unreadSessionIds}
+        title={isSettings ? 'Settings' : (activeSession?.title ?? 'Sessions')}
+        showPanelToggle={Boolean(activeSession) && !isSettings}
+        onAddProject={handleAddProject}
+        onRemoveProject={handleRemoveProject}
+        onCreateSession={handleCreateSession}
+        onToggleArchiveSession={handleToggleArchiveSession}
+      >
+        <Outlet />
+      </AppShell>
+
+      <AlertDialog
+        open={worktreeArchiveDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) handleWorktreeDialogChoice(false)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete worktree?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This session has a worktree at &ldquo;{worktreeArchiveDialog?.displayPath}&rdquo;.
+              Would you like to delete the worktree too?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => handleWorktreeDialogChoice(false)}>
+              Keep worktree
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => handleWorktreeDialogChoice(true)}
+            >
+              Delete worktree
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
 
