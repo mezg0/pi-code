@@ -3,7 +3,7 @@
 > [!WARNING]
 > This project is in a very early stage of development. Expect rough edges, breaking changes, and incomplete features. Use at your own risk and please report any issues you encounter — contributions and feedback are welcome!
 
-A desktop coding assistant powered by [pi](https://github.com/nicholasgriffintn/pi). Built with Electron, React, and TypeScript.
+A desktop coding assistant powered by [pi](https://github.com/badlogic/pi-mono). Built with Electron, React, and TypeScript.
 
 pi-code wraps the pi coding agent in a native desktop app with a full-featured UI — chat conversations, file browsing, git integration, an embedded terminal, plan mode, and more. Think of it as a GUI shell for pi that lets you interact with AI coding agents without leaving your editor-like environment.
 
@@ -35,7 +35,7 @@ pi-code wraps the pi coding agent in a native desktop app with a full-featured U
 | Frontend | [React 19](https://react.dev/) · [TanStack Router](https://tanstack.com/router) · [Tailwind CSS 4](https://tailwindcss.com/) |
 | UI Components | [shadcn/ui](https://ui.shadcn.com/) · [Radix UI](https://www.radix-ui.com/) · [cmdk](https://cmdk.paco.me/) |
 | Code & Terminal | [Monaco Editor](https://microsoft.github.io/monaco-editor/) · [Shiki](https://shiki.style/) · [xterm.js](https://xtermjs.org/) |
-| AI Agent | [@mariozechner/pi-coding-agent](https://github.com/nicholasgriffintn/pi) · [Vercel AI SDK](https://sdk.vercel.ai/) |
+| AI Agent | [@mariozechner/pi-coding-agent](https://github.com/badlogic/pi-mono) · [Vercel AI SDK](https://sdk.vercel.ai/) |
 | Animations | [Motion](https://motion.dev/) |
 
 ## Prerequisites
