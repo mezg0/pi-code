@@ -1,7 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react'
 import { GitCommitHorizontalIcon, PanelRightCloseIcon, PanelRightOpenIcon } from 'lucide-react'
 
 import { BranchPicker } from './branch-picker'
+
+import type { GroupImperativeHandle } from 'react-resizable-panels'
 
 import { Button } from '@/components/ui/button'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
@@ -12,11 +22,23 @@ import { extractLatestPlan, getPlanMessageKey } from '@/lib/plan'
 import { getAgentMessages, onAgentMessages, type Project, type Session } from '@/lib/sessions'
 import { getShortcutDisplay, SHORTCUTS } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
+import {
+  DEFAULT_TOOL_PANEL_SIZE,
+  loadLeftSidebarOpen,
+  loadProjectViewState,
+  saveLeftSidebarOpen,
+  saveProjectViewState
+} from '@/lib/view-state'
 import { groupSessions } from '@/lib/workspace'
 
 import { CommitDialog } from './commit-dialog'
 import { SidebarProjects } from './sidebar-projects'
 import { ToolPanel, type ToolTab } from './tool-panel'
+
+type ProjectToolPanelState = {
+  tab: ToolTab | null
+  open: boolean
+}
 
 export function AppShell({
   projects,
@@ -43,29 +65,82 @@ export function AppShell({
   onCreateSession: (project: Project) => Promise<void>
   onToggleArchiveSession: (session: Session, archived: boolean) => Promise<void>
 }): React.JSX.Element {
-  const [toolTabsByProjectPath, setToolTabsByProjectPath] = useState<
-    Record<string, ToolTab | null>
-  >({})
+  const [sidebarOpen, setSidebarOpen] = useState(() => loadLeftSidebarOpen())
+  const [toolStateByProjectPath, setToolStateByProjectPath] = useState<
+    Record<string, ProjectToolPanelState>
+  >(() => {
+    const initial: Record<string, ProjectToolPanelState> = {}
+    for (const p of projects) {
+      const stored = loadProjectViewState(p.repoPath)
+      initial[p.repoPath] = {
+        tab: stored.toolTab,
+        open: stored.toolPanelOpen
+      }
+    }
+    return initial
+  })
   const sessionGroups = useMemo(() => groupSessions(projects, sessions), [projects, sessions])
   const activeProjectPath = activeSession?.repoPath
-  const activeToolTab = activeProjectPath
-    ? (toolTabsByProjectPath[activeProjectPath] ?? null)
-    : null
+  const activeToolState = activeProjectPath
+    ? (toolStateByProjectPath[activeProjectPath] ?? { tab: null, open: false })
+    : { tab: null, open: false }
+  const activeToolTab = activeToolState.tab
+  const toolPanelOpen = activeToolState.open
 
-  const setActiveToolTab = useCallback(
-    (next: ToolTab | null | ((current: ToolTab | null) => ToolTab | null)): void => {
+  const handleSidebarChange = useCallback((open: boolean): void => {
+    setSidebarOpen(open)
+    saveLeftSidebarOpen(open)
+  }, [])
+
+  const updateActiveToolState = useCallback(
+    (updater: (current: ProjectToolPanelState) => ProjectToolPanelState): void => {
       if (!activeProjectPath) return
-      setToolTabsByProjectPath((prev) => {
-        const current = prev[activeProjectPath] ?? null
-        const resolved = typeof next === 'function' ? next(current) : next
-        return { ...prev, [activeProjectPath]: resolved }
+      setToolStateByProjectPath((prev) => {
+        const current = prev[activeProjectPath] ?? { tab: null, open: false }
+        const next = updater(current)
+        saveProjectViewState(activeProjectPath, {
+          toolTab: next.tab,
+          toolPanelOpen: next.open
+        })
+        return { ...prev, [activeProjectPath]: next }
       })
     },
     [activeProjectPath]
   )
 
+  const setActiveToolTab = useCallback(
+    (next: ToolTab | null | ((current: ToolTab | null) => ToolTab | null)): void => {
+      updateActiveToolState((current) => {
+        const visibleCurrent = current.open ? current.tab : null
+        const resolved = typeof next === 'function' ? next(visibleCurrent) : next
+
+        if (resolved === null) {
+          return { ...current, open: false }
+        }
+
+        return { tab: resolved, open: true }
+      })
+    },
+    [updateActiveToolState]
+  )
+
+  const toggleToolPanel = useCallback((): void => {
+    updateActiveToolState((current) =>
+      current.open
+        ? { ...current, open: false }
+        : { tab: current.tab ?? 'git', open: true }
+    )
+  }, [updateActiveToolState])
+
+  const rememberActiveToolTab = useCallback(
+    (tab: ToolTab): void => {
+      updateActiveToolState((current) => ({ ...current, tab }))
+    },
+    [updateActiveToolState]
+  )
+
   return (
-    <SidebarProvider defaultOpen className="h-full">
+    <SidebarProvider open={sidebarOpen} onOpenChange={handleSidebarChange} className="h-full">
       <SidebarProjects
         sessionGroups={sessionGroups}
         activeSession={activeSession}
@@ -80,7 +155,10 @@ export function AppShell({
         title={title}
         showPanelToggle={showPanelToggle}
         activeToolTab={activeToolTab}
+        toolPanelOpen={toolPanelOpen}
         setActiveToolTab={setActiveToolTab}
+        toggleToolPanel={toggleToolPanel}
+        rememberActiveToolTab={rememberActiveToolTab}
         activeSession={activeSession}
       >
         {children}
@@ -93,14 +171,20 @@ function AppShellContent({
   title,
   showPanelToggle,
   activeToolTab,
+  toolPanelOpen,
   setActiveToolTab,
+  toggleToolPanel,
+  rememberActiveToolTab,
   activeSession,
   children
 }: {
   title: string
   showPanelToggle: boolean
   activeToolTab: ToolTab | null
+  toolPanelOpen: boolean
   setActiveToolTab: (next: ToolTab | null | ((current: ToolTab | null) => ToolTab | null)) => void
+  toggleToolPanel: () => void
+  rememberActiveToolTab: (tab: ToolTab) => void
   activeSession: Session | null
   children: ReactNode
 }): React.JSX.Element {
@@ -113,8 +197,51 @@ function AppShellContent({
   const [dismissedPlanKey, setDismissedPlanKey] = useState<string | null>(null)
   const [currentPlanKey, setCurrentPlanKey] = useState<string | null>(null)
   const cwd = activeSession?.repoPath
+  const toolPanelSize = cwd
+    ? loadProjectViewState(cwd).toolPanelSize
+    : DEFAULT_TOOL_PANEL_SIZE
 
   const planVisible = hasPlan && currentPlanKey !== dismissedPlanKey
+  const displayedToolTab = activeToolTab ?? 'git'
+
+  // Keep the split layout structurally stable: always render both panels and
+  // drive open/close by updating the group layout. This avoids remounting the
+  // tool panel subtree (browser/terminal) and eliminates flaky defaultSize
+  // behavior when switching sessions.
+  const panelGroupRef = useRef<GroupImperativeHandle>(null)
+  const syncingLayoutRef = useRef(false)
+
+  useLayoutEffect(() => {
+    const group = panelGroupRef.current
+    if (!group) return
+
+    const size = cwd ? loadProjectViewState(cwd).toolPanelSize : DEFAULT_TOOL_PANEL_SIZE
+    syncingLayoutRef.current = true
+    group.setLayout(
+      toolPanelOpen
+        ? { main: 100 - size, tool: size }
+        : { main: 100, tool: 0 }
+    )
+
+    const frameId = window.requestAnimationFrame(() => {
+      syncingLayoutRef.current = false
+    })
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+      syncingLayoutRef.current = false
+    }
+  }, [cwd, toolPanelOpen])
+
+  // Save tool panel size on user-initiated resize only.
+  const handleToolPanelResize = useCallback(
+    (size: { asPercentage: number }, _id: string | number | undefined, prev: unknown): void => {
+      if (!cwd || prev == null || syncingLayoutRef.current) return
+      if (size.asPercentage <= 0) return
+      saveProjectViewState(cwd, { toolPanelSize: size.asPercentage })
+    },
+    [cwd]
+  )
 
   const handleDismissPlan = useCallback(() => {
     if (currentPlanKey) {
@@ -153,11 +280,13 @@ function AppShellContent({
     return () => clearInterval(interval)
   }, [checkForChanges])
 
-  // Track activeToolTab in a ref so the effect can read it without re-running
+  // Track tool panel state in refs so the plan effect can read them without re-running
   const activeToolTabRef = useRef(activeToolTab)
+  const toolPanelOpenRef = useRef(toolPanelOpen)
   useEffect(() => {
     activeToolTabRef.current = activeToolTab
-  }, [activeToolTab])
+    toolPanelOpenRef.current = toolPanelOpen
+  }, [activeToolTab, toolPanelOpen])
 
   useEffect(() => {
     if (!activeSession?.id) {
@@ -181,7 +310,11 @@ function AppShellContent({
         setHasPlan(Boolean(lastPlanKey))
         setCurrentPlanKey(lastPlanKey)
         if (!lastPlanKey && activeToolTabRef.current === 'plan') {
-          setActiveToolTab(null)
+          if (toolPanelOpenRef.current) {
+            setActiveToolTab('git')
+          } else {
+            rememberActiveToolTab('git')
+          }
         }
       })
       .catch(() => {
@@ -190,7 +323,11 @@ function AppShellContent({
         setHasPlan(false)
         setCurrentPlanKey(null)
         if (activeToolTabRef.current === 'plan') {
-          setActiveToolTab(null)
+          if (toolPanelOpenRef.current) {
+            setActiveToolTab('git')
+          } else {
+            rememberActiveToolTab('git')
+          }
         }
       })
 
@@ -204,7 +341,11 @@ function AppShellContent({
       if (nextPlanKey && nextPlanKey !== lastPlanKey) {
         setActiveToolTab('plan')
       } else if (!nextPlanKey && activeToolTabRef.current === 'plan') {
-        setActiveToolTab(null)
+        if (toolPanelOpenRef.current) {
+          setActiveToolTab('git')
+        } else {
+          rememberActiveToolTab('git')
+        }
       }
 
       lastPlanKey = nextPlanKey ?? null
@@ -214,7 +355,7 @@ function AppShellContent({
       disposed = true
       unsubscribe()
     }
-  }, [activeSession?.id, setActiveToolTab])
+  }, [activeSession?.id, rememberActiveToolTab, setActiveToolTab])
 
   // Re-check after dialog closes (commit may have changed status)
   function handleCommitOpenChange(open: boolean): void {
@@ -227,14 +368,9 @@ function AppShellContent({
 
   const hasSession = Boolean(activeSession)
 
-  useHotkey(
-    SHORTCUTS['toggle-panel'].keys,
-    useCallback(
-      () => setActiveToolTab((current) => (current ? null : 'git')),
-      [setActiveToolTab]
-    ),
-    { enabled: hasSession }
-  )
+  useHotkey(SHORTCUTS['toggle-panel'].keys, useCallback(() => toggleToolPanel(), [toggleToolPanel]), {
+    enabled: hasSession
+  })
 
   useHotkey(
     SHORTCUTS['open-commit'].keys,
@@ -294,14 +430,16 @@ function AppShellContent({
                   variant="ghost"
                   size="icon-sm"
                   className="no-drag shrink-0"
-                  onClick={() => setActiveToolTab((current) => (current ? null : 'git'))}
+                  onClick={toggleToolPanel}
                 >
-                  {activeToolTab ? <PanelRightCloseIcon /> : <PanelRightOpenIcon />}
+                  {toolPanelOpen ? <PanelRightCloseIcon /> : <PanelRightOpenIcon />}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                {activeToolTab ? 'Close panel' : 'Open panel'}{' '}
-                <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">{getShortcutDisplay('toggle-panel')}</kbd>
+                {toolPanelOpen ? 'Close panel' : 'Open panel'}{' '}
+                <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">
+                  {getShortcutDisplay('toggle-panel')}
+                </kbd>
               </TooltipContent>
             </Tooltip>
           ) : null}
@@ -312,44 +450,42 @@ function AppShellContent({
 
       <div className="min-w-0 flex-1 overflow-hidden">
         {showPanelToggle ? (
-          <ResizablePanelGroup orientation="horizontal" className="min-w-0 overflow-hidden">
+          <ResizablePanelGroup
+            groupRef={panelGroupRef}
+            orientation="horizontal"
+            className="min-w-0 overflow-hidden"
+          >
             <ResizablePanel
-              defaultSize={activeToolTab ? 55 : 100}
+              id="main"
+              defaultSize={toolPanelOpen ? 100 - toolPanelSize : 100}
               minSize={30}
               className="min-w-0 overflow-hidden"
             >
               {children}
             </ResizablePanel>
 
-            {activeToolTab ? (
-              <>
-                <ResizableHandle />
-                <ResizablePanel defaultSize={45} minSize={20} className="min-w-0 overflow-hidden">
-                  <ToolPanel
-                    activeTab={activeToolTab}
-                    onSelect={setActiveToolTab}
-                    onClose={() => setActiveToolTab(null)}
-                    cwd={activeSession?.repoPath}
-                    sessionId={activeSession?.id}
-                    hasPlan={planVisible}
-                    onDismissPlan={handleDismissPlan}
-                  />
-                </ResizablePanel>
-              </>
-            ) : (
-              /* Keep ToolPanel mounted but invisible when panel is closed */
-              <div className="sr-only">
-                <ToolPanel
-                  activeTab="git"
-                  onSelect={setActiveToolTab}
-                  onClose={() => setActiveToolTab(null)}
-                  cwd={activeSession?.repoPath}
-                  sessionId={activeSession?.id}
-                  hasPlan={planVisible}
-                  onDismissPlan={handleDismissPlan}
-                />
-              </div>
-            )}
+            <ResizableHandle
+              className={cn(!toolPanelOpen && 'pointer-events-none opacity-0')}
+            />
+            <ResizablePanel
+              id="tool"
+              defaultSize={toolPanelSize}
+              minSize={20}
+              collapsible
+              collapsedSize={0}
+              onResize={handleToolPanelResize}
+              className="min-w-0 overflow-hidden"
+            >
+              <ToolPanel
+                activeTab={displayedToolTab}
+                onSelect={setActiveToolTab}
+                onClose={() => setActiveToolTab(null)}
+                cwd={activeSession?.repoPath}
+                sessionId={activeSession?.id}
+                hasPlan={planVisible}
+                onDismissPlan={handleDismissPlan}
+              />
+            </ResizablePanel>
           </ResizablePanelGroup>
         ) : (
           children

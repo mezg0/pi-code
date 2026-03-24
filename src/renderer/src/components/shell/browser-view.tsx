@@ -4,7 +4,7 @@ import { ExternalLinkIcon, RefreshCwIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-const browserState = new Map<string, { url: string }>()
+const BROWSER_URL_PREFIX = 'pi.browser-url:'
 
 function normalizeUrl(value: string): string {
   const trimmed = value.trim()
@@ -14,11 +14,19 @@ function normalizeUrl(value: string): string {
 }
 
 function getStoredUrl(id: string): string {
-  return browserState.get(id)?.url ?? ''
+  try {
+    return localStorage.getItem(`${BROWSER_URL_PREFIX}${id}`) ?? ''
+  } catch {
+    return ''
+  }
 }
 
 function setStoredUrl(id: string, url: string): void {
-  browserState.set(id, { url })
+  try {
+    localStorage.setItem(`${BROWSER_URL_PREFIX}${id}`, url)
+  } catch {
+    // Ignore storage errors.
+  }
 }
 
 type WebviewElement = HTMLElement & {

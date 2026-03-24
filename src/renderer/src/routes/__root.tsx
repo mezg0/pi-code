@@ -23,6 +23,7 @@ import {
   type Project,
   type Session
 } from '@/lib/sessions'
+import { clearProjectViewState } from '@/lib/view-state'
 import {
   hasUnseenSessionCompletion,
   loadSessionVisitedAt,
@@ -68,6 +69,8 @@ function RootComponent(): React.JSX.Element {
   async function handleRemoveProject(project: Project): Promise<void> {
     const removed = await removeProject(project.id)
     if (!removed) return
+
+    clearProjectViewState(project.repoPath)
 
     if (activeSession?.repoPath === project.repoPath) {
       await navigate({ to: '/' })
