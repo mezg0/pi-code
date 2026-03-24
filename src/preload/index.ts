@@ -16,12 +16,15 @@ import type {
   GitWorktreeResult,
   ModelInfo,
   Project,
+  QuestionAnswer,
+  QuestionRequest,
   RpcState,
   Session,
   SessionApi,
   SessionImageInput,
   SessionMessagesPayload,
   SessionPlanModePayload,
+  SessionQuestionPayload,
   SessionStreamingPayload,
   TerminalApi,
   TerminalDataPayload,
@@ -80,6 +83,18 @@ const api: SessionApi = {
       const handler = (_event: unknown, payload: SessionPlanModePayload): void => listener(payload)
       ipcRenderer.on('sessions:planMode', handler)
       return () => ipcRenderer.off('sessions:planMode', handler)
+    },
+    getPendingQuestion: (sessionId: string) =>
+      ipcRenderer.invoke('sessions:pendingQuestion', sessionId) as Promise<QuestionRequest | null>,
+    questionReply: (requestId: string, answers: QuestionAnswer[]) =>
+      ipcRenderer.invoke('sessions:questionReply', requestId, answers) as Promise<boolean>,
+    questionReject: (requestId: string) =>
+      ipcRenderer.invoke('sessions:questionReject', requestId) as Promise<boolean>,
+    onQuestion: (listener): (() => void) => {
+      const handler = (_event: unknown, payload: SessionQuestionPayload): void =>
+        listener(payload)
+      ipcRenderer.on('sessions:question', handler)
+      return () => ipcRenderer.off('sessions:question', handler)
     }
   }
 }

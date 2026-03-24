@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Outlet,
   createRootRoute,
@@ -18,6 +18,7 @@ import {
   DEFAULT_AGENT,
   DEFAULT_MODEL,
   NEW_SESSION_TITLE,
+  onQuestionEvent,
   removeProject,
   updateSession,
   type Project,
@@ -51,6 +52,22 @@ function RootComponent(): React.JSX.Element {
 
     markSessionVisited(loadSessionVisitedAt(), activeSessionId)
   }, [activeSessionId, activeSession?.updatedAt])
+
+  // Track sessions with pending questions globally for sidebar indicators
+  const [questionSessionIds, setQuestionSessionIds] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    return onQuestionEvent((payload) => {
+      setQuestionSessionIds((prev) => {
+        const next = new Set(prev)
+        if (payload.request) {
+          next.add(payload.sessionId)
+        } else {
+          next.delete(payload.sessionId)
+        }
+        return next
+      })
+    })
+  }, [])
 
   const unreadSessionIds = useMemo(() => {
     return new Set(
@@ -157,6 +174,7 @@ function RootComponent(): React.JSX.Element {
       sessions={workspace.sessions}
       activeSession={activeSession}
       unreadSessionIds={unreadSessionIds}
+      questionSessionIds={questionSessionIds}
       title={isSettings ? 'Settings' : (activeSession?.title ?? 'Sessions')}
       showPanelToggle={Boolean(activeSession) && !isSettings}
       onAddProject={handleAddProject}

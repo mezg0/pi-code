@@ -70,6 +70,7 @@ export function SidebarProjects({
   sessionGroups,
   activeSession,
   unreadSessionIds,
+  questionSessionIds,
   onAddProject,
   onRemoveProject,
   onCreateSession,
@@ -78,6 +79,7 @@ export function SidebarProjects({
   sessionGroups: SessionGroup[]
   activeSession: Session | null
   unreadSessionIds: Set<string>
+  questionSessionIds: Set<string>
   onAddProject: () => Promise<void>
   onRemoveProject: (project: Project) => Promise<void>
   onCreateSession: (
@@ -139,6 +141,7 @@ export function SidebarProjects({
                             session={session}
                             isActive={session.id === activeSession?.id}
                             isUnread={unreadSessionIds.has(session.id)}
+                            hasQuestion={questionSessionIds.has(session.id)}
                             onToggleArchiveSession={onToggleArchiveSession}
                           />
                         ))}
@@ -480,11 +483,13 @@ function SessionMenuEntry({
   session,
   isActive,
   isUnread,
+  hasQuestion,
   onToggleArchiveSession
 }: {
   session: Session
   isActive: boolean
   isUnread: boolean
+  hasQuestion: boolean
   onToggleArchiveSession: (session: Session, archived: boolean) => Promise<void>
 }): React.JSX.Element {
   const isBusy = BUSY_STATUSES.has(session.status)
@@ -494,7 +499,9 @@ function SessionMenuEntry({
     <SidebarMenuItem>
       <SidebarMenuButton isActive={isActive} tooltip={session.title} asChild>
         <Link to="/sessions/$sessionId/overview" params={{ sessionId: session.id }}>
-          {isBusy ? (
+          {hasQuestion ? (
+            <CircleIcon className="!size-1.5 fill-amber-500 text-amber-500" />
+          ) : isBusy ? (
             <LoaderCircleIcon className="size-3 animate-spin text-muted-foreground" />
           ) : isFailed ? (
             <CircleXIcon className="size-3 text-destructive" />

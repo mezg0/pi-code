@@ -4,11 +4,14 @@ import type {
   GitBranch,
   ModelInfo,
   Project,
+  QuestionAnswer,
+  QuestionRequest,
   RpcState,
   Session,
   SessionImageInput,
   SessionMessagesPayload,
   SessionPlanModePayload,
+  SessionQuestionPayload,
   SessionStatus,
   SessionStreamingEvent,
   SessionStreamingPayload,
@@ -22,11 +25,14 @@ export type {
   GitBranch,
   ModelInfo,
   Project,
+  QuestionAnswer,
+  QuestionRequest,
   RpcState,
   Session,
   SessionImageInput,
   SessionMessagesPayload,
   SessionPlanModePayload,
+  SessionQuestionPayload,
   SessionStatus,
   SessionStreamingEvent,
   SessionStreamingPayload,
@@ -75,3 +81,12 @@ export const onStreamingEvent = (
 export const onPlanModeEvent = (
   listener: (payload: SessionPlanModePayload) => void
 ): (() => void) => api.sessions.onPlanMode(listener)
+export const getPendingQuestion = (sessionId: string): Promise<QuestionRequest | null> =>
+  api.sessions.getPendingQuestion(sessionId)
+export const questionReply = (requestId: string, answers: QuestionAnswer[]): Promise<boolean> =>
+  api.sessions.questionReply(requestId, answers)
+export const questionReject = (requestId: string): Promise<boolean> =>
+  api.sessions.questionReject(requestId)
+export const onQuestionEvent = (
+  listener: (payload: SessionQuestionPayload) => void
+): (() => void) => api.sessions.onQuestion(listener)

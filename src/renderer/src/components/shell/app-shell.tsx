@@ -50,6 +50,7 @@ export function AppShell({
   sessions,
   activeSession,
   unreadSessionIds,
+  questionSessionIds,
   title,
   children,
   showPanelToggle,
@@ -62,6 +63,7 @@ export function AppShell({
   sessions: Session[]
   activeSession: Session | null
   unreadSessionIds: Set<string>
+  questionSessionIds: Set<string>
   title: string
   children: ReactNode
   showPanelToggle: boolean
@@ -154,6 +156,7 @@ export function AppShell({
         sessionGroups={sessionGroups}
         activeSession={activeSession}
         unreadSessionIds={unreadSessionIds}
+        questionSessionIds={questionSessionIds}
         onAddProject={onAddProject}
         onRemoveProject={onRemoveProject}
         onCreateSession={onCreateSession}

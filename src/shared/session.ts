@@ -88,6 +88,34 @@ export type SessionPlanModePayload = {
   enabled: boolean
 }
 
+// ── Ask-user-question types ──────────────────────────────────────────
+
+export type QuestionOption = {
+  label: string
+  description: string
+}
+
+export type QuestionInfo = {
+  question: string
+  header: string
+  options: QuestionOption[]
+  multiple?: boolean
+  custom?: boolean
+}
+
+export type QuestionAnswer = string[]
+
+export type QuestionRequest = {
+  id: string
+  sessionId: string
+  questions: QuestionInfo[]
+}
+
+export type SessionQuestionPayload = {
+  sessionId: string
+  request: QuestionRequest | null
+}
+
 export type RpcModel = {
   provider: string
   id: string
@@ -247,6 +275,10 @@ export type SessionApi = {
     onMessages(listener: (payload: SessionMessagesPayload) => void): () => void
     onStreaming(listener: (payload: SessionStreamingPayload) => void): () => void
     onPlanMode(listener: (payload: SessionPlanModePayload) => void): () => void
+    getPendingQuestion(sessionId: string): Promise<QuestionRequest | null>
+    questionReply(requestId: string, answers: QuestionAnswer[]): Promise<boolean>
+    questionReject(requestId: string): Promise<boolean>
+    onQuestion(listener: (payload: SessionQuestionPayload) => void): () => void
   }
 }
 

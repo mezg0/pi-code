@@ -8,6 +8,7 @@ import {
   getAgentMessages,
   getAgentState,
   getAvailableModels,
+  getPendingQuestion,
   getPlanMode,
   sendSessionMessage,
   setModel,
@@ -15,6 +16,8 @@ import {
   setThinkingLevel,
   steerSession
 } from '../services/pi-runner'
+import { replyToQuestion, rejectQuestion } from '../services/tools/question'
+import type { QuestionAnswer } from '../../shared/session'
 
 export function registerSessionIpc(): void {
   ipcMain.handle('projects:list', () => listProjects())
@@ -48,5 +51,15 @@ export function registerSessionIpc(): void {
   )
   ipcMain.handle('sessions:setThinking', (_event, id: string, level: string) =>
     setThinkingLevel(id, level)
+  )
+  ipcMain.handle('sessions:pendingQuestion', (_event, sessionId: string) =>
+    getPendingQuestion(sessionId)
+  )
+  ipcMain.handle(
+    'sessions:questionReply',
+    (_event, requestId: string, answers: QuestionAnswer[]) => replyToQuestion(requestId, answers)
+  )
+  ipcMain.handle('sessions:questionReject', (_event, requestId: string) =>
+    rejectQuestion(requestId)
   )
 }
