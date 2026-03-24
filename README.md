@@ -20,6 +20,7 @@ pi-code wraps the pi coding agent in a native desktop app with a full-featured U
 - **Git Integration** — View diffs, stage changes, and commit directly from the app
 - **Embedded Terminal** — Full terminal access via xterm.js without leaving the app
 - **Plan Mode** — Toggle between implementation and planning modes for more deliberate workflows
+- **API Key & OAuth Management** — Configure API keys or sign in with OAuth (Anthropic, OpenAI Codex, GitHub Copilot, Google) directly from Settings
 - **Model Selection** — Switch between available AI models and thinking levels on the fly
 - **Web Fetch** — Fetch and reference live documentation from URLs during conversations
 - **Skills** — Load specialized skills for domain-specific tasks (shadcn, animations, design, etc.)
@@ -41,7 +42,7 @@ pi-code wraps the pi coding agent in a native desktop app with a full-featured U
 
 - **Node.js** >= 20
 - **npm** >= 10
-- **API keys** for at least one supported AI provider (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) set as environment variables
+- **API keys or OAuth login** for at least one supported AI provider — configure these in the app's **Settings** page, or set environment variables (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`)
 
 ## Getting Started
 
@@ -80,8 +81,9 @@ Built artifacts are output to the `dist/` directory.
 src/
 ├── main/                  # Electron main process
 │   ├── index.ts           # App entry point, window creation, IPC registration
-│   ├── ipc/               # IPC handlers (sessions, terminal, git, files, browser)
+│   ├── ipc/               # IPC handlers (auth, sessions, terminal, git, files, browser)
 │   └── services/          # Core services
+│       ├── auth.ts         # API key and OAuth credential management
 │       ├── pi-runner.ts   # Agent session lifecycle and streaming
 │       ├── session-manager.ts  # Session persistence
 │       ├── git.ts         # Git operations
