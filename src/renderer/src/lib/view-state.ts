@@ -6,6 +6,7 @@ import type { ToolTab } from '@/components/shell/tool-panel'
 
 const PROJECT_VIEW_STATE_KEY = 'pi.project-view-state'
 const LEFT_SIDEBAR_KEY = 'pi.left-sidebar-open'
+const TOOL_PANEL_SIZE_KEY = 'pi.tool-panel-size'
 const BROWSER_URL_PREFIX = 'pi.browser-url:'
 
 // ---------------------------------------------------------------------------
@@ -17,7 +18,6 @@ export const DEFAULT_TOOL_PANEL_SIZE = 45
 export type ProjectViewState = {
   toolTab: ToolTab | null
   toolPanelOpen: boolean
-  toolPanelSize: number
 }
 
 type ProjectViewStateMap = Record<string, ProjectViewState>
@@ -28,8 +28,7 @@ type ProjectViewStateMap = Record<string, ProjectViewState>
 
 const DEFAULT_PROJECT_VIEW_STATE: ProjectViewState = {
   toolTab: null,
-  toolPanelOpen: false,
-  toolPanelSize: DEFAULT_TOOL_PANEL_SIZE
+  toolPanelOpen: false
 }
 
 // ---------------------------------------------------------------------------
@@ -67,8 +66,7 @@ export function loadProjectViewState(repoPath: string): ProjectViewState {
     toolPanelOpen:
       typeof stored.toolPanelOpen === 'boolean'
         ? stored.toolPanelOpen
-        : Boolean(stored.toolTab),
-    toolPanelSize: stored.toolPanelSize ?? DEFAULT_PROJECT_VIEW_STATE.toolPanelSize
+        : Boolean(stored.toolTab)
   }
 }
 
@@ -99,6 +97,29 @@ export function clearProjectViewState(repoPath: string): void {
     localStorage.removeItem(`${BROWSER_URL_PREFIX}browser:${repoPath}`)
   } catch {
     // Ignore
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tool panel size (global, not per-project)
+// ---------------------------------------------------------------------------
+
+export function loadToolPanelSize(): number {
+  try {
+    const raw = localStorage.getItem(TOOL_PANEL_SIZE_KEY)
+    if (!raw) return DEFAULT_TOOL_PANEL_SIZE
+    const parsed = Number(raw)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_TOOL_PANEL_SIZE
+  } catch {
+    return DEFAULT_TOOL_PANEL_SIZE
+  }
+}
+
+export function saveToolPanelSize(size: number): void {
+  try {
+    localStorage.setItem(TOOL_PANEL_SIZE_KEY, String(size))
+  } catch {
+    // Ignore storage errors.
   }
 }
 

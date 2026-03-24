@@ -3,6 +3,7 @@ import { useRouter } from '@tanstack/react-router'
 import {
   ArchiveRestoreIcon,
   CheckCircle2Icon,
+  GitBranchIcon,
   KeyIcon,
   Loader2Icon,
   LogInIcon,
@@ -18,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { listSessions, updateSession, type Session } from '@/lib/sessions'
 import type { AuthProviderInfo } from '../../../../shared/session'
 
@@ -225,7 +227,12 @@ function ArchivedChatsSection(): React.JSX.Element {
                 className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{session.title}</p>
+                  <div className="flex items-center gap-1.5">
+                    {session.worktreePath && (
+                      <GitBranchIcon className="size-3 shrink-0 text-muted-foreground" />
+                    )}
+                    <p className="truncate text-sm font-medium">{session.title}</p>
+                  </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {new Date(session.updatedAt).toLocaleDateString(undefined, {
                       year: 'numeric',
@@ -234,20 +241,36 @@ function ArchivedChatsSection(): React.JSX.Element {
                     })}
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="ml-4 shrink-0"
-                  disabled={unarchiving.has(session.id)}
-                  onClick={() => void handleUnarchive(session)}
-                >
-                  {unarchiving.has(session.id) ? (
-                    <Loader2Icon className="size-3.5 animate-spin" data-icon="inline-start" />
-                  ) : (
-                    <ArchiveRestoreIcon data-icon="inline-start" />
-                  )}
-                  Unarchive
-                </Button>
+                {session.worktreePath ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="ml-4 shrink-0">
+                        <Button variant="outline" size="sm" disabled>
+                          <ArchiveRestoreIcon data-icon="inline-start" />
+                          Unarchive
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      Worktree sessions cannot be restored
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="ml-4 shrink-0"
+                    disabled={unarchiving.has(session.id)}
+                    onClick={() => void handleUnarchive(session)}
+                  >
+                    {unarchiving.has(session.id) ? (
+                      <Loader2Icon className="size-3.5 animate-spin" data-icon="inline-start" />
+                    ) : (
+                      <ArchiveRestoreIcon data-icon="inline-start" />
+                    )}
+                    Unarchive
+                  </Button>
+                )}
               </div>
             ))}
           </div>

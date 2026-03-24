@@ -98,6 +98,8 @@ function getToolTitle(name: string): string {
       return 'List'
     case 'webfetch':
       return 'Web Fetch'
+    case 'ask_user_question':
+      return 'Question'
     case 'load_skill':
       return 'Load Skill'
     case 'get_plan':
@@ -138,6 +140,12 @@ function getToolSubtitle(name: string, args: unknown): string | undefined {
       return typeof a.path === 'string' ? a.path : '.'
     case 'webfetch':
       return typeof a.url === 'string' ? a.url : undefined
+    case 'ask_user_question': {
+      const questions = a.questions as Array<{ question?: string }> | undefined
+      if (!questions?.length) return undefined
+      if (questions.length === 1) return questions[0]?.question
+      return `${questions.length} questions`
+    }
     case 'load_skill':
       return typeof a.name === 'string' && a.name.trim() ? a.name : undefined
     case 'get_plan':

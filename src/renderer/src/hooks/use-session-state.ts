@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import {
+  getPendingQuestion,
   onAgentMessages,
+  onQuestionEvent,
   onSessionUpdated,
   onStreamingEvent,
   type AgentMessage,
+  type QuestionRequest,
   type Session,
   type SessionStreamingEvent
 } from '@/lib/sessions'
@@ -18,8 +21,10 @@ type UseSessionStateResult = {
   streamingMessage: AgentMessage | null
   pendingMessages: string[]
   errorMessage: string | null
+  questionRequest: QuestionRequest | null
   setLoading: () => void
   clearError: () => void
+  clearQuestion: () => void
 }
 
 export function useSessionState(
@@ -34,6 +39,7 @@ export function useSessionState(
   const [streamingMessage, setStreamingMessage] = useState<AgentMessage | null>(null)
   const [pendingMessages, setPendingMessages] = useState<string[]>([])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [questionRequest, setQuestionRequest] = useState<QuestionRequest | null>(null)
 
   useEffect(() => {
     // Flags to sync streaming state clearing with committed message arrival.
@@ -152,10 +158,21 @@ export function useSessionState(
       }
     })
 
+    const unsubscribeQuestion = onQuestionEvent((payload) => {
+      if (payload.sessionId !== sessionId) return
+      setQuestionRequest(payload.request)
+    })
+
+    // Recover pending question when navigating back to a session
+    void getPendingQuestion(sessionId).then((request) => {
+      if (request) setQuestionRequest(request)
+    })
+
     return () => {
       unsubscribeUpdated()
       unsubscribeMessages()
       unsubscribeStreaming()
+      unsubscribeQuestion()
       if (endTimeoutId) clearTimeout(endTimeoutId)
       clearStreamingBuffer()
     }
@@ -170,6 +187,10 @@ export function useSessionState(
     setErrorMessage(null)
   }, [])
 
+  const clearQuestion = useCallback((): void => {
+    setQuestionRequest(null)
+  }, [])
+
   return {
     session,
     messages,
@@ -178,7 +199,9 @@ export function useSessionState(
     streamingMessage,
     pendingMessages,
     errorMessage,
+    questionRequest,
     setLoading,
-    clearError
+    clearError,
+    clearQuestion
   }
 }

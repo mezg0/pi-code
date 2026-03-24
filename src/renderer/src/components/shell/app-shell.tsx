@@ -31,8 +31,10 @@ import {
   DEFAULT_TOOL_PANEL_SIZE,
   loadLeftSidebarOpen,
   loadProjectViewState,
+  loadToolPanelSize,
   saveLeftSidebarOpen,
-  saveProjectViewState
+  saveProjectViewState,
+  saveToolPanelSize
 } from '@/lib/view-state'
 import { groupSessions } from '@/lib/workspace'
 
@@ -50,6 +52,7 @@ export function AppShell({
   sessions,
   activeSession,
   unreadSessionIds,
+  questionSessionIds,
   title,
   children,
   showPanelToggle,
@@ -62,6 +65,7 @@ export function AppShell({
   sessions: Session[]
   activeSession: Session | null
   unreadSessionIds: Set<string>
+  questionSessionIds: Set<string>
   title: string
   children: ReactNode
   showPanelToggle: boolean
@@ -154,6 +158,7 @@ export function AppShell({
         sessionGroups={sessionGroups}
         activeSession={activeSession}
         unreadSessionIds={unreadSessionIds}
+        questionSessionIds={questionSessionIds}
         onAddProject={onAddProject}
         onRemoveProject={onRemoveProject}
         onCreateSession={onCreateSession}
@@ -207,9 +212,7 @@ function AppShellContent({
   const [currentPlanKey, setCurrentPlanKey] = useState<string | null>(null)
   const isWorktreeSession = Boolean(activeSession?.worktreePath)
   const cwd = activeSession?.worktreePath ?? activeSession?.repoPath
-  const toolPanelSize = cwd
-    ? loadProjectViewState(cwd).toolPanelSize
-    : DEFAULT_TOOL_PANEL_SIZE
+  const toolPanelSize = loadToolPanelSize()
 
   const planVisible = hasPlan && currentPlanKey !== dismissedPlanKey
   const displayedToolTab = activeToolTab ?? 'git'
@@ -225,7 +228,7 @@ function AppShellContent({
     const group = panelGroupRef.current
     if (!group) return
 
-    const size = cwd ? loadProjectViewState(cwd).toolPanelSize : DEFAULT_TOOL_PANEL_SIZE
+    const size = loadToolPanelSize()
     syncingLayoutRef.current = true
     group.setLayout(
       toolPanelOpen
@@ -241,16 +244,16 @@ function AppShellContent({
       window.cancelAnimationFrame(frameId)
       syncingLayoutRef.current = false
     }
-  }, [cwd, toolPanelOpen])
+  }, [toolPanelOpen])
 
   // Save tool panel size on user-initiated resize only.
   const handleToolPanelResize = useCallback(
     (size: { asPercentage: number }, _id: string | number | undefined, prev: unknown): void => {
-      if (!cwd || prev == null || syncingLayoutRef.current) return
+      if (prev == null || syncingLayoutRef.current) return
       if (size.asPercentage <= 0) return
-      saveProjectViewState(cwd, { toolPanelSize: size.asPercentage })
+      saveToolPanelSize(size.asPercentage)
     },
-    [cwd]
+    []
   )
 
   const handleDismissPlan = useCallback(() => {

@@ -25,13 +25,14 @@ import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { onBrowserGrab } from '@/lib/browser-grab'
-import type { AgentMessage, Session, SessionImageInput } from '@/lib/sessions'
+import type { AgentMessage, QuestionRequest, Session, SessionImageInput } from '@/lib/sessions'
 import { SHORTCUTS } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 
 import { ModelSelector } from './model-selector'
 import { PiMessages } from './pi-messages'
 import { PlanModeToggle } from './plan-mode-toggle'
+import { QuestionDock } from './question-dock'
 
 export function SessionConversation(props: {
   session: Session
@@ -41,9 +42,11 @@ export function SessionConversation(props: {
   streamingMessage: AgentMessage | null
   pendingMessages: string[]
   errorMessage: string | null
+  questionRequest: QuestionRequest | null
   onSend: (text: string, images?: SessionImageInput[]) => Promise<void>
   onStop: () => Promise<void>
   onDismissError: () => void
+  onQuestionDone: () => void
 }): React.JSX.Element {
   const { scrollRef, contentRef, isAtBottom, scrollToBottom } = useStickToBottom({
     resize: 'instant',
@@ -160,14 +163,28 @@ export function SessionConversation(props: {
         </div>
       </div>
 
-      <SessionPromptInput
-        session={props.session}
-        isLoading={props.isLoading}
-        isStreaming={props.isStreaming}
-        pendingMessages={props.pendingMessages}
-        onSend={props.onSend}
-        onStop={props.onStop}
-      />
+      <div className="relative shrink-0">
+        {/* Question dock — overlays the prompt input when the AI asks a question */}
+        {props.questionRequest && (
+          <div className="absolute inset-x-0 bottom-0 z-10 px-3 pb-3 sm:px-5">
+            <div className="mx-auto w-full max-w-3xl">
+              <QuestionDock request={props.questionRequest} onDone={props.onQuestionDone} />
+            </div>
+          </div>
+        )}
+
+        <div className={cn(props.questionRequest && 'invisible')}>
+          <SessionPromptInput
+            session={props.session}
+            isLoading={props.isLoading}
+            isStreaming={props.isStreaming}
+            pendingMessages={props.pendingMessages}
+            blocked={!!props.questionRequest}
+            onSend={props.onSend}
+            onStop={props.onStop}
+          />
+        </div>
+      </div>
     </div>
   )
 }
@@ -177,6 +194,7 @@ function SessionPromptInput({
   isLoading,
   isStreaming,
   pendingMessages,
+  blocked,
   onSend,
   onStop
 }: {
@@ -184,6 +202,7 @@ function SessionPromptInput({
   isLoading: boolean
   isStreaming: boolean
   pendingMessages: string[]
+  blocked: boolean
   onSend: (text: string, images?: SessionImageInput[]) => Promise<void>
   onStop: () => Promise<void>
 }): React.JSX.Element {
@@ -262,19 +281,25 @@ function SessionPromptInput({
         <PromptInput
           onSubmit={(message) => handleSubmit(message)}
           accept="image/*"
-          className="w-full [&_[data-slot=input-group]]:transition-none"
+          className={cn(
+            'w-full [&_[data-slot=input-group]]:transition-none',
+            blocked && 'pointer-events-none opacity-50'
+          )}
         >
           <AttachmentBar />
           <PromptInputBody>
             <PromptInputTextarea
               value={input}
               onChange={(event) => setInput(event.currentTarget.value)}
+              disabled={blocked}
               placeholder={
-                isStreaming
-                  ? 'Send to steer…'
-                  : session.status === 'draft'
-                    ? 'Send first message…'
-                    : 'Send follow-up…'
+                blocked
+                  ? 'Answer the question above…'
+                  : isStreaming
+                    ? 'Send to steer…'
+                    : session.status === 'draft'
+                      ? 'Send first message…'
+                      : 'Send follow-up…'
               }
             />
           </PromptInputBody>
