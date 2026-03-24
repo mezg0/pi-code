@@ -6,12 +6,13 @@ import type {
   GitStatus,
   GitCommitResult,
   GitChangedFile,
+  GitBranch,
   GitFileContents,
   GitFileStatus,
   GitStagingState
 } from '../../shared/session'
 
-export type { GitStatus, GitCommitResult, GitChangedFile }
+export type { GitStatus, GitCommitResult, GitChangedFile, GitBranch }
 
 const exec = promisify(execFile)
 
@@ -448,6 +449,95 @@ export async function createPullRequest(
     if (draft) args.push('--draft')
     const result = await exec('gh', args, { cwd })
     return { success: true, message: result.stdout.trim() }
+  } catch (error) {
+    return {
+      success: false,
+      message: '',
+      error: error instanceof Error ? error.message : String(error)
+    }
+  }
+}
+
+export async function listBranches(cwd: string): Promise<GitBranch[]> {
+  const branches: GitBranch[] = []
+
+  // Local branches sorted by most recent commit
+  try {
+    const localOutput = await git(
+      cwd,
+      'branch',
+      '--sort=-committerdate',
+      '--format=%(refname:short)|%(HEAD)|%(committerdate:relative)'
+    )
+    for (const line of localOutput.split('\n').filter(Boolean)) {
+      const [name, head, lastCommitDate] = line.split('|')
+      if (name) {
+        branches.push({
+          name,
+          isCurrent: head === '*',
+          isRemote: false,
+          lastCommitDate
+        })
+      }
+    }
+  } catch {
+    /* no local branches */
+  }
+
+  // Remote branches
+  try {
+    const remoteOutput = await git(
+      cwd,
+      'branch',
+      '-r',
+      '--sort=-committerdate',
+      '--format=%(refname:short)|%(committerdate:relative)'
+    )
+    const localNames = new Set(branches.map((b) => b.name))
+    for (const line of remoteOutput.split('\n').filter(Boolean)) {
+      const [fullName, lastCommitDate] = line.split('|')
+      if (!fullName || fullName.includes('/HEAD')) continue
+      // Strip the remote prefix (e.g. "origin/feature" → "feature")
+      const shortName = fullName.replace(/^[^/]+\//, '')
+      // Skip if there's already a local branch with the same name
+      if (localNames.has(shortName)) continue
+      branches.push({
+        name: shortName,
+        isCurrent: false,
+        isRemote: true,
+        lastCommitDate
+      })
+    }
+  } catch {
+    /* no remote branches */
+  }
+
+  return branches
+}
+
+export async function checkoutBranch(cwd: string, branch: string): Promise<GitCommitResult> {
+  try {
+    await git(cwd, 'checkout', branch)
+    return { success: true, message: `Switched to branch '${branch}'` }
+  } catch (error) {
+    // If checkout fails, it might be a remote-only branch — try creating a tracking branch
+    try {
+      await git(cwd, 'checkout', '-b', branch, `origin/${branch}`)
+      return { success: true, message: `Created and switched to branch '${branch}' tracking origin/${branch}` }
+    } catch {
+      return {
+        success: false,
+        message: '',
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  }
+}
+
+export async function createBranch(cwd: string, branch: string): Promise<GitCommitResult> {
+  try {
+    await git(cwd, 'checkout', '-b', branch)
+    return { success: true, message: `Created and switched to branch '${branch}'` }
   } catch (error) {
     return {
       success: false,

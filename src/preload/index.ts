@@ -8,6 +8,7 @@ import type {
   FilesApi,
   FilesChangedPayload,
   GitApi,
+  GitBranch,
   GitChangedFile,
   GitCommitResult,
   GitFileContents,
@@ -156,7 +157,13 @@ const gitApi: GitApi = {
     ipcRenderer.invoke('git:commit', cwd, message, includeUnstaged) as Promise<GitCommitResult>,
   push: (cwd: string) => ipcRenderer.invoke('git:push', cwd) as Promise<GitCommitResult>,
   createPR: (cwd: string, title: string, draft: boolean) =>
-    ipcRenderer.invoke('git:createPR', cwd, title, draft) as Promise<GitCommitResult>
+    ipcRenderer.invoke('git:createPR', cwd, title, draft) as Promise<GitCommitResult>,
+  listBranches: (cwd: string) =>
+    ipcRenderer.invoke('git:listBranches', cwd) as Promise<GitBranch[]>,
+  checkoutBranch: (cwd: string, branch: string) =>
+    ipcRenderer.invoke('git:checkoutBranch', cwd, branch) as Promise<GitCommitResult>,
+  createBranch: (cwd: string, branch: string) =>
+    ipcRenderer.invoke('git:createBranch', cwd, branch) as Promise<GitCommitResult>
 }
 
 if (process.contextIsolated) {

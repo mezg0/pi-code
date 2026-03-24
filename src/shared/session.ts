@@ -158,6 +158,13 @@ export type GitFileContents = {
   isBinary: boolean
 }
 
+export type GitBranch = {
+  name: string
+  isCurrent: boolean
+  isRemote: boolean
+  lastCommitDate?: string
+}
+
 export type GitApi = {
   isRepo(cwd: string): Promise<boolean>
   status(cwd: string): Promise<GitStatus>
@@ -173,6 +180,9 @@ export type GitApi = {
   commit(cwd: string, message: string, includeUnstaged: boolean): Promise<GitCommitResult>
   push(cwd: string): Promise<GitCommitResult>
   createPR(cwd: string, title: string, draft: boolean): Promise<GitCommitResult>
+  listBranches(cwd: string): Promise<GitBranch[]>
+  checkoutBranch(cwd: string, branch: string): Promise<GitCommitResult>
+  createBranch(cwd: string, branch: string): Promise<GitCommitResult>
 }
 
 export type FileEntry = {

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { GitCommitHorizontalIcon, PanelRightCloseIcon, PanelRightOpenIcon } from 'lucide-react'
 
+import { BranchPicker } from './branch-picker'
+
 import { Button } from '@/components/ui/button'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
@@ -104,6 +106,7 @@ function AppShellContent({
   const sidebarCollapsed = state === 'collapsed'
   const [commitOpen, setCommitOpen] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
+  const [branchName, setBranchName] = useState('')
   const [hasPlan, setHasPlan] = useState(false)
   const [dismissedPlanKey, setDismissedPlanKey] = useState<string | null>(null)
   const [currentPlanKey, setCurrentPlanKey] = useState<string | null>(null)
@@ -122,16 +125,19 @@ function AppShellContent({
   const checkForChanges = useCallback(async () => {
     if (!cwd) {
       setHasChanges(false)
+      setBranchName('')
       return
     }
     try {
       const isRepo = await window.git.isRepo(cwd)
       if (!isRepo) {
         setHasChanges(false)
+        setBranchName('')
         return
       }
       const status = await window.git.status(cwd)
       setHasChanges(status.hasChanges)
+      setBranchName(status.branch)
     } catch {
       setHasChanges(false)
     }
@@ -225,16 +231,24 @@ function AppShellContent({
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{title}</span>
         <div className="flex items-center gap-1">
           {cwd ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="no-drag shrink-0"
-              disabled={!hasChanges}
-              onClick={() => setCommitOpen(true)}
-            >
-              <GitCommitHorizontalIcon data-icon="inline-start" />
-              Commit
-            </Button>
+            <>
+              <BranchPicker
+                cwd={cwd}
+                currentBranch={branchName}
+                disabled={hasChanges}
+                onBranchChanged={checkForChanges}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="no-drag shrink-0"
+                disabled={!hasChanges}
+                onClick={() => setCommitOpen(true)}
+              >
+                <GitCommitHorizontalIcon data-icon="inline-start" />
+                Commit
+              </Button>
+            </>
           ) : null}
           {showPanelToggle ? (
             <Tooltip>

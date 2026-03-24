@@ -13,7 +13,10 @@ import {
   commitChanges,
   pushChanges,
   createPullRequest,
-  isGitRepo
+  isGitRepo,
+  listBranches,
+  checkoutBranch,
+  createBranch
 } from '../services/git'
 
 export function registerGitIpc(): void {
@@ -55,5 +58,15 @@ export function registerGitIpc(): void {
 
   ipcMain.handle('git:createPR', (_event, cwd: string, title: string, draft: boolean) =>
     createPullRequest(cwd, title, draft)
+  )
+
+  ipcMain.handle('git:listBranches', (_event, cwd: string) => listBranches(cwd))
+
+  ipcMain.handle('git:checkoutBranch', (_event, cwd: string, branch: string) =>
+    checkoutBranch(cwd, branch)
+  )
+
+  ipcMain.handle('git:createBranch', (_event, cwd: string, branch: string) =>
+    createBranch(cwd, branch)
   )
 }
