@@ -10,6 +10,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { extractLatestPlan, getPlanMessageKey } from '@/lib/plan'
 import { getAgentMessages, onAgentMessages, type Project, type Session } from '@/lib/sessions'
 import { cn } from '@/lib/utils'
+import {
+  DEFAULT_TOOL_PANEL_SIZE,
+  loadLeftSidebarOpen,
+  loadProjectViewState,
+  saveLeftSidebarOpen,
+  saveProjectViewState
+} from '@/lib/view-state'
 import { groupSessions } from '@/lib/workspace'
 
 import { CommitDialog } from './commit-dialog'
@@ -41,14 +48,26 @@ export function AppShell({
   onCreateSession: (project: Project) => Promise<void>
   onToggleArchiveSession: (session: Session, archived: boolean) => Promise<void>
 }): React.JSX.Element {
+  const [sidebarOpen, setSidebarOpen] = useState(() => loadLeftSidebarOpen())
   const [toolTabsByProjectPath, setToolTabsByProjectPath] = useState<
     Record<string, ToolTab | null>
-  >({})
+  >(() => {
+    const initial: Record<string, ToolTab | null> = {}
+    for (const p of projects) {
+      initial[p.repoPath] = loadProjectViewState(p.repoPath).toolTab
+    }
+    return initial
+  })
   const sessionGroups = useMemo(() => groupSessions(projects, sessions), [projects, sessions])
   const activeProjectPath = activeSession?.repoPath
   const activeToolTab = activeProjectPath
     ? (toolTabsByProjectPath[activeProjectPath] ?? null)
     : null
+
+  const handleSidebarChange = useCallback((open: boolean): void => {
+    setSidebarOpen(open)
+    saveLeftSidebarOpen(open)
+  }, [])
 
   const setActiveToolTab = useCallback(
     (next: ToolTab | null | ((current: ToolTab | null) => ToolTab | null)): void => {
@@ -56,6 +75,7 @@ export function AppShell({
       setToolTabsByProjectPath((prev) => {
         const current = prev[activeProjectPath] ?? null
         const resolved = typeof next === 'function' ? next(current) : next
+        saveProjectViewState(activeProjectPath, { toolTab: resolved })
         return { ...prev, [activeProjectPath]: resolved }
       })
     },
@@ -63,7 +83,7 @@ export function AppShell({
   )
 
   return (
-    <SidebarProvider defaultOpen className="h-full">
+    <SidebarProvider open={sidebarOpen} onOpenChange={handleSidebarChange} className="h-full">
       <SidebarProjects
         sessionGroups={sessionGroups}
         activeSession={activeSession}
@@ -111,8 +131,21 @@ function AppShellContent({
   const [dismissedPlanKey, setDismissedPlanKey] = useState<string | null>(null)
   const [currentPlanKey, setCurrentPlanKey] = useState<string | null>(null)
   const cwd = activeSession?.repoPath
+  const toolPanelSize = cwd
+    ? loadProjectViewState(cwd).toolPanelSize
+    : DEFAULT_TOOL_PANEL_SIZE
 
   const planVisible = hasPlan && currentPlanKey !== dismissedPlanKey
+
+  // Save tool panel size on user-initiated resize (skip the initial mount).
+  const handleToolPanelResize = useCallback(
+    (size: { asPercentage: number }, _id: string | number | undefined, prev: unknown): void => {
+      // prev is undefined on mount — skip to avoid overwriting stored sizes
+      if (!cwd || prev == null) return
+      saveProjectViewState(cwd, { toolPanelSize: size.asPercentage })
+    },
+    [cwd]
+  )
 
   const handleDismissPlan = useCallback(() => {
     if (currentPlanKey) {
@@ -272,9 +305,13 @@ function AppShellContent({
 
       <div className="min-w-0 flex-1 overflow-hidden">
         {showPanelToggle ? (
-          <ResizablePanelGroup orientation="horizontal" className="min-w-0 overflow-hidden">
+          <ResizablePanelGroup
+            key={cwd}
+            orientation="horizontal"
+            className="min-w-0 overflow-hidden"
+          >
             <ResizablePanel
-              defaultSize={activeToolTab ? 55 : 100}
+              defaultSize={activeToolTab ? 100 - toolPanelSize : 100}
               minSize={30}
               className="min-w-0 overflow-hidden"
             >
@@ -284,7 +321,12 @@ function AppShellContent({
             {activeToolTab ? (
               <>
                 <ResizableHandle />
-                <ResizablePanel defaultSize={45} minSize={20} className="min-w-0 overflow-hidden">
+                <ResizablePanel
+                  defaultSize={toolPanelSize}
+                  minSize={20}
+                  onResize={handleToolPanelResize}
+                  className="min-w-0 overflow-hidden"
+                >
                   <ToolPanel
                     activeTab={activeToolTab}
                     onSelect={setActiveToolTab}
