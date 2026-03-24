@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { CheckIcon, GitBranchIcon, ChevronsUpDownIcon, PlusIcon, LoaderIcon, GlobeIcon } from 'lucide-react'
+import { GitBranchIcon, ChevronsUpDownIcon, PlusIcon, LoaderIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -39,7 +39,7 @@ export function BranchPicker({
     setError(null)
     try {
       const result = await window.git.listBranches(cwd)
-      setBranches(result)
+      setBranches(result.filter((b) => !b.isRemote))
     } catch (err) {
       console.error('Failed to list branches:', err)
     } finally {
@@ -96,13 +96,11 @@ export function BranchPicker({
     }
   }
 
-  const localBranches = branches.filter((b) => !b.isRemote)
-  const remoteBranches = branches.filter((b) => b.isRemote)
-
   // Show "create branch" option when search doesn't match any existing branch exactly
   const trimmedSearch = search.trim()
   const exactMatch = branches.some((b) => b.name === trimmedSearch)
-  const showCreate = trimmedSearch.length > 0 && !exactMatch && /^[^\s~^:?*[\]\\]+$/.test(trimmedSearch)
+  const showCreate =
+    trimmedSearch.length > 0 && !exactMatch && /^[^\s~^:?*[\]\\]+$/.test(trimmedSearch)
 
   const trigger = (
     <PopoverTrigger asChild>
@@ -162,11 +160,11 @@ export function BranchPicker({
                   </CommandGroup>
                 )}
 
-                {showCreate && localBranches.length > 0 && <CommandSeparator />}
+                {showCreate && branches.length > 0 && <CommandSeparator />}
 
-                {localBranches.length > 0 && (
-                  <CommandGroup heading="Local">
-                    {localBranches.map((branch) => (
+                {branches.length > 0 && (
+                  <CommandGroup>
+                    {branches.map((branch) => (
                       <CommandItem
                         key={branch.name}
                         value={branch.name}
@@ -186,36 +184,9 @@ export function BranchPicker({
                             {branch.lastCommitDate}
                           </span>
                         )}
-                        {branch.isCurrent && (
-                          <CheckIcon className="ml-1 size-3.5 text-emerald-500" />
-                        )}
                       </CommandItem>
                     ))}
                   </CommandGroup>
-                )}
-
-                {remoteBranches.length > 0 && (
-                  <>
-                    {localBranches.length > 0 && <CommandSeparator />}
-                    <CommandGroup heading="Remote">
-                      {remoteBranches.map((branch) => (
-                        <CommandItem
-                          key={`remote-${branch.name}`}
-                          value={`remote/${branch.name}`}
-                          onSelect={() => handleSelect(branch.name)}
-                          disabled={switching}
-                        >
-                          <GlobeIcon className="size-3.5 text-muted-foreground" />
-                          <span className="flex-1 truncate">{branch.name}</span>
-                          {branch.lastCommitDate && (
-                            <span className="ml-auto text-[10px] text-muted-foreground">
-                              {branch.lastCommitDate}
-                            </span>
-                          )}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </>
                 )}
               </>
             )}
