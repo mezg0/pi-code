@@ -34,7 +34,9 @@ function SessionOverviewContent({
     isStreaming,
     streamingMessage,
     pendingMessages,
-    setLoading
+    errorMessage,
+    setLoading,
+    clearError
   } = useSessionState(initialSession.id, initialSession, initialMessages)
 
   async function handleSend(text: string, images?: SessionImageInput[]): Promise<void> {
@@ -54,8 +56,10 @@ function SessionOverviewContent({
       isStreaming={isStreaming}
       streamingMessage={streamingMessage}
       pendingMessages={pendingMessages}
+      errorMessage={errorMessage}
       onSend={handleSend}
       onStop={handleStop}
+      onDismissError={clearError}
     />
   )
 }

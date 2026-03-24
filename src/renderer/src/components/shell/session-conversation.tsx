@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowDownIcon, CornerDownRightIcon, WaypointsIcon } from 'lucide-react'
+import { AlertCircleIcon, ArrowDownIcon, CornerDownRightIcon, SettingsIcon, WaypointsIcon, XIcon } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { useStickToBottom } from 'use-stick-to-bottom'
 import type { FileUIPart } from 'ai'
 
@@ -20,6 +21,7 @@ import {
   PromptInputTools,
   usePromptInputAttachments
 } from '@/components/ai-elements/prompt-input'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import type { AgentMessage, Session, SessionImageInput } from '@/lib/sessions'
 import { cn } from '@/lib/utils'
@@ -35,8 +37,10 @@ export function SessionConversation(props: {
   isStreaming: boolean
   streamingMessage: AgentMessage | null
   pendingMessages: string[]
+  errorMessage: string | null
   onSend: (text: string, images?: SessionImageInput[]) => Promise<void>
   onStop: () => Promise<void>
+  onDismissError: () => void
 }): React.JSX.Element {
   const { scrollRef, contentRef, isAtBottom, scrollToBottom } = useStickToBottom({
     resize: 'instant',
@@ -92,6 +96,12 @@ export function SessionConversation(props: {
                 isStreaming={props.isStreaming}
                 streamingMessage={props.streamingMessage}
               />
+              {props.errorMessage && (
+                <SessionError
+                  message={props.errorMessage}
+                  onDismiss={props.onDismissError}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -236,6 +246,46 @@ function SessionPromptInput({
         </PromptInput>
       </div>
     </div>
+  )
+}
+
+function SessionError({
+  message,
+  onDismiss
+}: {
+  message: string
+  onDismiss: () => void
+}): React.JSX.Element {
+  const isApiKeyError = message.toLowerCase().includes('no api key')
+
+  return (
+    <Alert variant="destructive" className="animate-fade-in-up">
+      <AlertCircleIcon />
+      <AlertTitle>Something went wrong</AlertTitle>
+      <AlertDescription>
+        {message}
+        {isApiKeyError && (
+          <>
+            {' '}
+            <Link to="/settings" className="inline-flex items-center gap-1 font-medium underline underline-offset-3 hover:text-foreground">
+              <SettingsIcon className="size-3" />
+              Open Settings
+            </Link>
+          </>
+        )}
+      </AlertDescription>
+      <AlertAction>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-6"
+          onClick={onDismiss}
+        >
+          <XIcon />
+          <span className="sr-only">Dismiss</span>
+        </Button>
+      </AlertAction>
+    </Alert>
   )
 }
 

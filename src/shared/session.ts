@@ -69,6 +69,10 @@ export type SessionStreamingEvent =
       type: 'agent_end'
       pendingMessages: string[]
     }
+  | {
+      type: 'error'
+      message: string
+    }
 
 export type SessionStreamingPayload = {
   sessionId: string
@@ -217,4 +221,28 @@ export type SessionApi = {
     onStreaming(listener: (payload: SessionStreamingPayload) => void): () => void
     onPlanMode(listener: (payload: SessionPlanModePayload) => void): () => void
   }
+}
+
+// Auth types
+
+export type AuthProviderInfo = {
+  id: string
+  name: string
+  isOAuth: boolean
+  hasCredential: boolean
+  credentialType?: 'api_key' | 'oauth' | 'env'
+}
+
+export type AuthProgressPayload = {
+  providerId: string
+  message: string
+}
+
+export type AuthApi = {
+  listProviders(): Promise<AuthProviderInfo[]>
+  setApiKey(providerId: string, key: string): Promise<boolean>
+  removeCredential(providerId: string): Promise<boolean>
+  login(providerId: string): Promise<boolean>
+  logout(providerId: string): Promise<boolean>
+  onProgress(listener: (payload: AuthProgressPayload) => void): () => void
 }

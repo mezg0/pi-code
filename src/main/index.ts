@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { registerAuthIpc } from './ipc/auth'
 import { registerBrowserIpc } from './ipc/browser'
 import { registerFilesIpc } from './ipc/files'
 import { registerGitIpc } from './ipc/git'
@@ -64,6 +65,7 @@ app.whenReady().then(() => {
     }
   })
 
+  registerAuthIpc()
   registerSessionIpc()
   registerTerminalIpc()
   registerBrowserIpc()

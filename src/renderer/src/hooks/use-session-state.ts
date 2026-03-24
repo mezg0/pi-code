@@ -17,7 +17,9 @@ type UseSessionStateResult = {
   isStreaming: boolean
   streamingMessage: AgentMessage | null
   pendingMessages: string[]
+  errorMessage: string | null
   setLoading: () => void
+  clearError: () => void
 }
 
 export function useSessionState(
@@ -31,6 +33,7 @@ export function useSessionState(
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingMessage, setStreamingMessage] = useState<AgentMessage | null>(null)
   const [pendingMessages, setPendingMessages] = useState<string[]>([])
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
     // Flags to sync streaming state clearing with committed message arrival.
@@ -103,7 +106,9 @@ export function useSessionState(
       if (payload.sessionId !== sessionId) return
 
       const event: SessionStreamingEvent = payload.event
-      setPendingMessages(event.pendingMessages)
+      if ('pendingMessages' in event) {
+        setPendingMessages(event.pendingMessages)
+      }
       switch (event.type) {
         case 'message_update':
           pendingClear = false
@@ -137,6 +142,13 @@ export function useSessionState(
             }
           }, 300)
           break
+        case 'error':
+          clearStreamingBuffer()
+          setIsLoading(false)
+          setIsStreaming(false)
+          setStreamingMessage(null)
+          setErrorMessage(event.message)
+          break
       }
     })
 
@@ -151,6 +163,11 @@ export function useSessionState(
 
   const setLoading = useCallback((): void => {
     setIsLoading(true)
+    setErrorMessage(null)
+  }, [])
+
+  const clearError = useCallback((): void => {
+    setErrorMessage(null)
   }, [])
 
   return {
@@ -160,6 +177,8 @@ export function useSessionState(
     isStreaming,
     streamingMessage,
     pendingMessages,
-    setLoading
+    errorMessage,
+    setLoading,
+    clearError
   }
 }

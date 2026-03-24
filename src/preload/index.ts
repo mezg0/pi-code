@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type {
+  AuthApi,
+  AuthProgressPayload,
   CreateSessionInput,
   FileEntry,
   FilesApi,
@@ -116,6 +118,21 @@ const filesApi: FilesApi = {
   }
 }
 
+const authApi: AuthApi = {
+  listProviders: () => ipcRenderer.invoke('auth:listProviders'),
+  setApiKey: (providerId: string, key: string) =>
+    ipcRenderer.invoke('auth:setApiKey', providerId, key),
+  removeCredential: (providerId: string) =>
+    ipcRenderer.invoke('auth:removeCredential', providerId),
+  login: (providerId: string) => ipcRenderer.invoke('auth:login', providerId),
+  logout: (providerId: string) => ipcRenderer.invoke('auth:logout', providerId),
+  onProgress: (listener): (() => void) => {
+    const handler = (_event: unknown, payload: AuthProgressPayload): void => listener(payload)
+    ipcRenderer.on('auth:progress', handler)
+    return () => ipcRenderer.off('auth:progress', handler)
+  }
+}
+
 const gitApi: GitApi = {
   isRepo: (cwd: string) => ipcRenderer.invoke('git:isRepo', cwd) as Promise<boolean>,
   status: (cwd: string) => ipcRenderer.invoke('git:status', cwd) as Promise<GitStatus>,
@@ -146,6 +163,7 @@ if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
+    contextBridge.exposeInMainWorld('auth', authApi)
     contextBridge.exposeInMainWorld('terminal', terminalApi)
     contextBridge.exposeInMainWorld('files', filesApi)
     contextBridge.exposeInMainWorld('git', gitApi)
@@ -156,6 +174,7 @@ if (process.contextIsolated) {
   const unsafeWindow = window as typeof window & {
     electron: typeof electronAPI
     api: SessionApi
+    auth: AuthApi
     terminal: TerminalApi
     files: FilesApi
     git: GitApi
@@ -163,6 +182,7 @@ if (process.contextIsolated) {
 
   unsafeWindow.electron = electronAPI
   unsafeWindow.api = api
+  unsafeWindow.auth = authApi
   unsafeWindow.terminal = terminalApi
   unsafeWindow.files = filesApi
   unsafeWindow.git = gitApi
