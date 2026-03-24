@@ -1,5 +1,7 @@
 # pi-code
 
+<img width="1894" height="1306" alt="Screenshot 2026-03-24 at 09 38 25" src="https://github.com/user-attachments/assets/0d56fa5e-797a-4c5d-93a1-fd3e320da25f" />
+
 > [!WARNING]
 > This project is in a very early stage of development. Expect rough edges, breaking changes, and incomplete features. Use at your own risk and please report any issues you encounter — contributions and feedback are welcome!
 
