@@ -23,8 +23,9 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { useShortcut } from '@/hooks/use-shortcut'
+import { useHotkey } from '@tanstack/react-hotkeys'
 import type { AgentMessage, Session, SessionImageInput } from '@/lib/sessions'
+import { SHORTCUTS } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 
 import { ModelSelector } from './model-selector'
@@ -72,15 +73,14 @@ export function SessionConversation(props: {
   }, [isAtBottom])
 
   // --- Session keyboard shortcuts ---
-  useShortcut(
-    'scroll-to-bottom',
+  useHotkey(
+    SHORTCUTS['scroll-to-bottom'].keys,
     useCallback(() => scrollToBottom(), [scrollToBottom])
   )
 
-  useShortcut(
-    'focus-input',
+  useHotkey(
+    SHORTCUTS['focus-input'].keys,
     useCallback(() => {
-      // Focus the textarea inside the prompt input
       const textarea = document.querySelector<HTMLTextAreaElement>(
         'textarea[data-slot="input-group-control"]'
       )

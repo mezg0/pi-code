@@ -6,9 +6,10 @@ import {
   useNavigate,
   useRouter
 } from '@tanstack/react-router'
+import { useHotkey } from '@tanstack/react-hotkeys'
 
 import { useWorkspaceState } from '@/hooks/use-workspace-state'
-import { useShortcut } from '@/hooks/use-shortcut'
+import { SHORTCUTS } from '@/lib/shortcuts'
 import { loadWorkspace } from '@/lib/workspace'
 import { AppShell } from '@/components/shell/app-shell'
 import {
@@ -103,16 +104,16 @@ function RootComponent(): React.JSX.Element {
   const activeProject = workspace.projects.find((p) => p.repoPath === activeSession?.repoPath)
   const firstProject = workspace.projects[0]
 
-  useShortcut(
-    'new-session',
+  useHotkey(
+    SHORTCUTS['new-session'].keys,
     useCallback(() => {
       const project = activeProject ?? firstProject
       if (project) void handleCreateSession(project)
     }, [activeProject, firstProject]) // eslint-disable-line react-hooks/exhaustive-deps
   )
 
-  useShortcut(
-    'open-settings',
+  useHotkey(
+    SHORTCUTS['open-settings'].keys,
     useCallback(() => {
       void navigate({ to: '/settings' })
     }, [navigate])

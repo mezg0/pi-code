@@ -4,9 +4,9 @@ import { ListChecksIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useShortcut } from '@/hooks/use-shortcut'
+import { useHotkey } from '@tanstack/react-hotkeys'
 import { getSessionPlanMode, onPlanModeEvent, setSessionPlanMode } from '@/lib/sessions'
-import { getShortcutDisplay } from '@/lib/shortcuts'
+import { getShortcutDisplay, SHORTCUTS } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 
 export function PlanModeToggle({ sessionId }: { sessionId: string }): React.JSX.Element {
@@ -58,7 +58,7 @@ export function PlanModeToggle({ sessionId }: { sessionId: string }): React.JSX.
   }
 
   // Keyboard shortcut to toggle plan mode
-  useShortcut('toggle-plan-mode', () => void handleToggle())
+  useHotkey(SHORTCUTS['toggle-plan-mode'].keys, () => void handleToggle())
 
   const shortcutHint = getShortcutDisplay('toggle-plan-mode')
   const label = enabled ? 'Plan mode on — read‑only' : 'Plan mode off'
