@@ -3,6 +3,12 @@ import { DEFAULT_SHORTCUTS, type ShortcutDef, type ShortcutId } from '@/lib/shor
 
 type ShortcutRegistry = Map<ShortcutId, ShortcutDef>
 
+// Module-level fallback so shortcuts work even outside the provider (e.g. after
+// an error boundary re-renders the tree without providers).
+const FALLBACK_REGISTRY: ShortcutRegistry = new Map(
+  DEFAULT_SHORTCUTS.map((def) => [def.id, def])
+)
+
 const ShortcutContext = createContext<ShortcutRegistry | null>(null)
 
 /**
@@ -26,10 +32,7 @@ export function ShortcutProvider({ children }: { children: ReactNode }): React.J
  */
 export function useShortcutRegistry(): ShortcutRegistry {
   const ctx = useContext(ShortcutContext)
-  if (!ctx) {
-    throw new Error('useShortcutRegistry must be used within a ShortcutProvider')
-  }
-  return ctx
+  return ctx ?? FALLBACK_REGISTRY
 }
 
 /**
