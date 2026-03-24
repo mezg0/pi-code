@@ -16,6 +16,7 @@ export const DEFAULT_TOOL_PANEL_SIZE = 45
 
 export type ProjectViewState = {
   toolTab: ToolTab | null
+  toolPanelOpen: boolean
   toolPanelSize: number
 }
 
@@ -27,6 +28,7 @@ type ProjectViewStateMap = Record<string, ProjectViewState>
 
 const DEFAULT_PROJECT_VIEW_STATE: ProjectViewState = {
   toolTab: null,
+  toolPanelOpen: false,
   toolPanelSize: DEFAULT_TOOL_PANEL_SIZE
 }
 
@@ -62,6 +64,10 @@ export function loadProjectViewState(repoPath: string): ProjectViewState {
   if (!stored) return { ...DEFAULT_PROJECT_VIEW_STATE }
   return {
     toolTab: stored.toolTab ?? DEFAULT_PROJECT_VIEW_STATE.toolTab,
+    toolPanelOpen:
+      typeof stored.toolPanelOpen === 'boolean'
+        ? stored.toolPanelOpen
+        : Boolean(stored.toolTab),
     toolPanelSize: stored.toolPanelSize ?? DEFAULT_PROJECT_VIEW_STATE.toolPanelSize
   }
 }
