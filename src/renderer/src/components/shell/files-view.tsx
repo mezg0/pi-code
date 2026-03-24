@@ -8,6 +8,7 @@ import {
   XIcon
 } from 'lucide-react'
 import Editor, { loader, type Monaco } from '@monaco-editor/react'
+import { useShortcut } from '@/hooks/use-shortcut'
 import * as monaco from 'monaco-editor'
 
 // Use the local bundled Monaco instead of loading from CDN
@@ -307,17 +308,8 @@ export function FilesView({ cwd }: { cwd: string }): React.JSX.Element {
     }
   }
 
-  // Cmd/Ctrl+S to save
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent): void {
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-        e.preventDefault()
-        handleSave()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  })
+  // Cmd/Ctrl+S to save (managed by centralized shortcut system)
+  useShortcut('save-file', handleSave)
 
   const isDirty = activeFile ? activeFile.content !== activeFile.originalContent : false
 

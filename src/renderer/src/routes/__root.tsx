@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import {
   Outlet,
   createRootRoute,
@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-router'
 
 import { useWorkspaceState } from '@/hooks/use-workspace-state'
+import { useShortcut } from '@/hooks/use-shortcut'
 import { loadWorkspace } from '@/lib/workspace'
 import { AppShell } from '@/components/shell/app-shell'
 import {
@@ -97,6 +98,25 @@ function RootComponent(): React.JSX.Element {
 
     await router.invalidate()
   }
+
+  // --- Global keyboard shortcuts ---
+  const activeProject = workspace.projects.find((p) => p.repoPath === activeSession?.repoPath)
+  const firstProject = workspace.projects[0]
+
+  useShortcut(
+    'new-session',
+    useCallback(() => {
+      const project = activeProject ?? firstProject
+      if (project) void handleCreateSession(project)
+    }, [activeProject, firstProject]) // eslint-disable-line react-hooks/exhaustive-deps
+  )
+
+  useShortcut(
+    'open-settings',
+    useCallback(() => {
+      void navigate({ to: '/settings' })
+    }, [navigate])
+  )
 
   return (
     <AppShell

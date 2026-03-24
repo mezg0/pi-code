@@ -23,6 +23,7 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { useShortcut } from '@/hooks/use-shortcut'
 import type { AgentMessage, Session, SessionImageInput } from '@/lib/sessions'
 import { cn } from '@/lib/utils'
 
@@ -69,6 +70,23 @@ export function SessionConversation(props: {
     const id = setTimeout(() => setShowScrollBtn(true), 150)
     return () => clearTimeout(id)
   }, [isAtBottom])
+
+  // --- Session keyboard shortcuts ---
+  useShortcut(
+    'scroll-to-bottom',
+    useCallback(() => scrollToBottom(), [scrollToBottom])
+  )
+
+  useShortcut(
+    'focus-input',
+    useCallback(() => {
+      // Focus the textarea inside the prompt input
+      const textarea = document.querySelector<HTMLTextAreaElement>(
+        'textarea[data-slot="input-group-control"]'
+      )
+      textarea?.focus()
+    }, [])
+  )
 
   return (
     <div className="flex h-full min-h-0 flex-col">
