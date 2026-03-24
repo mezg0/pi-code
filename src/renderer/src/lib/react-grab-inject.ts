@@ -23,26 +23,33 @@ export function getReactGrabInjectionScript(): string {
   if (window.__PI_REACT_GRAB_INJECTED__) return;
   window.__PI_REACT_GRAB_INJECTED__ = true;
 
+  function sendMessage(data) {
+    try {
+      console.log('${REACT_GRAB_MESSAGE_PREFIX}' + JSON.stringify(data));
+    } catch (e) {
+      // Ignore serialization errors
+    }
+  }
+
   function registerPiPlugin() {
     var api = window.__REACT_GRAB__;
     if (!api) return;
     try {
+      // Hide the built-in toolbar since pi-code has its own button
       api.registerPlugin({
         name: 'pi-code',
+        theme: {
+          toolbar: { enabled: false }
+        },
         hooks: {
-          onAfterCopy: function(elements, success) {
-            if (!success) return;
+          onActivate: function() {
+            sendMessage({ type: 'state-change', isActive: true });
+          },
+          onDeactivate: function() {
+            sendMessage({ type: 'state-change', isActive: false });
           },
           transformCopyContent: function(content, elements) {
-            // Send the content to the host via console message channel
-            try {
-              console.log('${REACT_GRAB_MESSAGE_PREFIX}' + JSON.stringify({
-                type: 'element-grabbed',
-                content: content
-              }));
-            } catch (e) {
-              // Ignore serialization errors
-            }
+            sendMessage({ type: 'element-grabbed', content: content });
             return content;
           }
         }

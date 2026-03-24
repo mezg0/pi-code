@@ -9,7 +9,6 @@ import { getReactGrabInjectionScript, REACT_GRAB_MESSAGE_PREFIX } from '@/lib/re
 import { cn } from '@/lib/utils'
 
 const BROWSER_URL_PREFIX = 'pi.browser-url:'
-const BROWSER_GRAB_PREFIX = 'pi.browser-grab:'
 
 function normalizeUrl(value: string): string {
   const trimmed = value.trim()
@@ -34,22 +33,6 @@ function setStoredUrl(id: string, url: string): void {
   }
 }
 
-function getStoredGrabEnabled(id: string): boolean {
-  try {
-    return localStorage.getItem(`${BROWSER_GRAB_PREFIX}${id}`) !== 'false'
-  } catch {
-    return true
-  }
-}
-
-function setStoredGrabEnabled(id: string, enabled: boolean): void {
-  try {
-    localStorage.setItem(`${BROWSER_GRAB_PREFIX}${id}`, String(enabled))
-  } catch {
-    // Ignore storage errors.
-  }
-}
-
 type WebviewElement = HTMLElement & {
   src: string
   reload(): void
@@ -64,39 +47,32 @@ export function BrowserView({ id }: { id: string }): React.JSX.Element {
   const webviewRef = useRef<WebviewElement>(null)
   const [input, setInput] = useState(() => getStoredUrl(id))
   const [url, setUrl] = useState(() => getStoredUrl(id))
-  const [grabEnabled, setGrabEnabled] = useState(() => getStoredGrabEnabled(id))
+  // Tracks whether react-grab is in active selection mode (not just loaded)
+  const [grabActive, setGrabActive] = useState(false)
   const hasUrl = !!url
 
-  // Inject react-grab into the webview
+  // Inject react-grab into the webview (always inject on dom-ready)
   const injectReactGrab = useCallback(() => {
     const webview = webviewRef.current
-    if (!webview || !grabEnabled) return
+    if (!webview) return
 
     const script = getReactGrabInjectionScript()
     webview.executeJavaScript(script).catch(() => {
       // Silently fail — page might not be ready yet
     })
-  }, [grabEnabled])
+  }, [])
 
-  // Toggle react-grab in the webview (enable/disable without reloading)
-  const toggleGrabInWebview = useCallback(
-    (enabled: boolean) => {
-      const webview = webviewRef.current
-      if (!webview) return
+  // Toggle react-grab's active selection mode in the webview
+  const toggleGrabActive = useCallback(() => {
+    const webview = webviewRef.current
+    if (!webview) return
 
-      if (enabled) {
-        injectReactGrab()
-      } else {
-        // Disable react-grab in the webview
-        webview
-          .executeJavaScript(
-            `if (window.__REACT_GRAB__) { window.__REACT_GRAB__.setEnabled(false); }`
-          )
-          .catch(() => {})
-      }
-    },
-    [injectReactGrab]
-  )
+    webview
+      .executeJavaScript(
+        `if (window.__REACT_GRAB__) { window.__REACT_GRAB__.toggle(); }`
+      )
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const webview = webviewRef.current
@@ -109,12 +85,13 @@ export function BrowserView({ id }: { id: string }): React.JSX.Element {
         setInput(currentUrl)
         setUrl(currentUrl)
       }
+      // Reset active state on navigation since the page changed
+      setGrabActive(false)
     }
 
     const handleDomReady = (): void => {
-      if (grabEnabled) {
-        injectReactGrab()
-      }
+      // Always inject react-grab so it's ready when the user clicks the button
+      injectReactGrab()
     }
 
     // Listen for console messages from the webview to capture react-grab events
@@ -126,10 +103,14 @@ export function BrowserView({ id }: { id: string }): React.JSX.Element {
       try {
         const data = JSON.parse(msg.slice(REACT_GRAB_MESSAGE_PREFIX.length)) as {
           type: string
-          content: string
+          content?: string
+          isActive?: boolean
         }
         if (data.type === 'element-grabbed' && data.content) {
           emitBrowserGrab({ content: data.content })
+        } else if (data.type === 'state-change' && data.isActive !== undefined) {
+          // Keep button state in sync with react-grab's active state
+          setGrabActive(data.isActive)
         }
       } catch {
         // Ignore parse errors
@@ -147,7 +128,7 @@ export function BrowserView({ id }: { id: string }): React.JSX.Element {
       webview.removeEventListener('dom-ready', handleDomReady)
       webview.removeEventListener('console-message', handleConsoleMessage)
     }
-  }, [id, hasUrl, grabEnabled, injectReactGrab])
+  }, [id, hasUrl, injectReactGrab])
 
   function handleNavigate(): void {
     const nextUrl = normalizeUrl(input)
@@ -166,10 +147,7 @@ export function BrowserView({ id }: { id: string }): React.JSX.Element {
   }
 
   function handleToggleGrab(): void {
-    const next = !grabEnabled
-    setGrabEnabled(next)
-    setStoredGrabEnabled(id, next)
-    toggleGrabInWebview(next)
+    toggleGrabActive()
   }
 
   return (
@@ -190,17 +168,17 @@ export function BrowserView({ id }: { id: string }): React.JSX.Element {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant={grabEnabled ? 'secondary' : 'ghost'}
+              variant={grabActive ? 'secondary' : 'ghost'}
               size="icon-sm"
               onClick={handleToggleGrab}
               disabled={!url}
-              className={cn(grabEnabled && 'text-primary')}
+              className={cn(grabActive && 'text-primary')}
             >
               <CrosshairIcon />
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            {grabEnabled ? 'Disable' : 'Enable'} element grabbing (⌘C to grab)
+            {grabActive ? 'Exit' : 'Enter'} element grab mode
           </TooltipContent>
         </Tooltip>
         <Button variant="ghost" size="icon-sm" onClick={handleReload} disabled={!url}>
