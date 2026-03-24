@@ -7,8 +7,10 @@ import { Button } from '@/components/ui/button'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useHotkey } from '@tanstack/react-hotkeys'
 import { extractLatestPlan, getPlanMessageKey } from '@/lib/plan'
 import { getAgentMessages, onAgentMessages, type Project, type Session } from '@/lib/sessions'
+import { getShortcutDisplay, SHORTCUTS } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 import { groupSessions } from '@/lib/workspace'
 
@@ -102,7 +104,7 @@ function AppShellContent({
   activeSession: Session | null
   children: ReactNode
 }): React.JSX.Element {
-  const { state } = useSidebar()
+  const { state, toggleSidebar } = useSidebar()
   const sidebarCollapsed = state === 'collapsed'
   const [commitOpen, setCommitOpen] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
@@ -220,6 +222,34 @@ function AppShellContent({
     if (!open) checkForChanges()
   }
 
+  // --- Shell keyboard shortcuts ---
+  useHotkey(SHORTCUTS['toggle-sidebar'].keys, toggleSidebar)
+
+  const hasSession = Boolean(activeSession)
+
+  useHotkey(
+    SHORTCUTS['toggle-panel'].keys,
+    useCallback(
+      () => setActiveToolTab((current) => (current ? null : 'git')),
+      [setActiveToolTab]
+    ),
+    { enabled: hasSession }
+  )
+
+  useHotkey(
+    SHORTCUTS['open-commit'].keys,
+    useCallback(() => {
+      if (cwd && hasChanges) setCommitOpen(true)
+    }, [cwd, hasChanges]),
+    { enabled: hasSession }
+  )
+
+  useHotkey(SHORTCUTS['tab-plan'].keys, useCallback(() => setActiveToolTab('plan'), [setActiveToolTab]), { enabled: hasSession })
+  useHotkey(SHORTCUTS['tab-git'].keys, useCallback(() => setActiveToolTab('git'), [setActiveToolTab]), { enabled: hasSession })
+  useHotkey(SHORTCUTS['tab-terminal'].keys, useCallback(() => setActiveToolTab('terminal'), [setActiveToolTab]), { enabled: hasSession })
+  useHotkey(SHORTCUTS['tab-files'].keys, useCallback(() => setActiveToolTab('files'), [setActiveToolTab]), { enabled: hasSession })
+  useHotkey(SHORTCUTS['tab-browser'].keys, useCallback(() => setActiveToolTab('browser'), [setActiveToolTab]), { enabled: hasSession })
+
   return (
     <SidebarInset className="flex min-w-0 flex-col overflow-hidden bg-background">
       <header
@@ -238,16 +268,23 @@ function AppShellContent({
                 disabled={hasChanges}
                 onBranchChanged={checkForChanges}
               />
-              <Button
-                variant="outline"
-                size="sm"
-                className="no-drag shrink-0"
-                disabled={!hasChanges}
-                onClick={() => setCommitOpen(true)}
-              >
-                <GitCommitHorizontalIcon data-icon="inline-start" />
-                Commit
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="no-drag shrink-0"
+                    disabled={!hasChanges}
+                    onClick={() => setCommitOpen(true)}
+                  >
+                    <GitCommitHorizontalIcon data-icon="inline-start" />
+                    Commit
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Commit changes <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">{getShortcutDisplay('open-commit')}</kbd>
+                </TooltipContent>
+              </Tooltip>
             </>
           ) : null}
           {showPanelToggle ? (
@@ -262,7 +299,10 @@ function AppShellContent({
                   {activeToolTab ? <PanelRightCloseIcon /> : <PanelRightOpenIcon />}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>{activeToolTab ? 'Close panel' : 'Open panel'}</TooltipContent>
+              <TooltipContent>
+                {activeToolTab ? 'Close panel' : 'Open panel'}{' '}
+                <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">{getShortcutDisplay('toggle-panel')}</kbd>
+              </TooltipContent>
             </Tooltip>
           ) : null}
         </div>

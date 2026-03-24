@@ -23,7 +23,9 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { useHotkey } from '@tanstack/react-hotkeys'
 import type { AgentMessage, Session, SessionImageInput } from '@/lib/sessions'
+import { SHORTCUTS } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 
 import { ModelSelector } from './model-selector'
@@ -69,6 +71,22 @@ export function SessionConversation(props: {
     const id = setTimeout(() => setShowScrollBtn(true), 150)
     return () => clearTimeout(id)
   }, [isAtBottom])
+
+  // --- Session keyboard shortcuts ---
+  useHotkey(
+    SHORTCUTS['scroll-to-bottom'].keys,
+    useCallback(() => scrollToBottom(), [scrollToBottom])
+  )
+
+  useHotkey(
+    SHORTCUTS['focus-input'].keys,
+    useCallback(() => {
+      const textarea = document.querySelector<HTMLTextAreaElement>(
+        'textarea[data-slot="input-group-control"]'
+      )
+      textarea?.focus()
+    }, [])
+  )
 
   return (
     <div className="flex h-full min-h-0 flex-col">
