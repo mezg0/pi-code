@@ -25,6 +25,8 @@ export type Session = {
   archived: boolean
   createdAt: string
   updatedAt: string
+  branch: string | null
+  worktreePath: string | null
 }
 
 export type Project = {
@@ -39,6 +41,8 @@ export type CreateSessionInput = {
   taskInstruction: string
   agent: string
   model: string
+  branch?: string | null
+  worktreePath?: string | null
 }
 
 export type UpdateSessionInput = Partial<
@@ -163,6 +167,12 @@ export type GitBranch = {
   isCurrent: boolean
   isRemote: boolean
   lastCommitDate?: string
+  worktreePath?: string | null
+}
+
+export type GitWorktreeResult = {
+  path: string
+  branch: string
 }
 
 export type GitApi = {
@@ -183,6 +193,13 @@ export type GitApi = {
   listBranches(cwd: string): Promise<GitBranch[]>
   checkoutBranch(cwd: string, branch: string): Promise<GitCommitResult>
   createBranch(cwd: string, branch: string): Promise<GitCommitResult>
+  createWorktree(
+    cwd: string,
+    branch: string,
+    newBranch?: string,
+    path?: string | null
+  ): Promise<GitWorktreeResult>
+  removeWorktree(cwd: string, worktreePath: string, force?: boolean): Promise<void>
 }
 
 export type FileEntry = {

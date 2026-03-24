@@ -1,7 +1,8 @@
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { readFile, unlink } from 'fs/promises'
-import { join } from 'path'
+import { basename, join } from 'path'
+import { homedir } from 'os'
 import type {
   GitStatus,
   GitCommitResult,
@@ -9,10 +10,11 @@ import type {
   GitBranch,
   GitFileContents,
   GitFileStatus,
-  GitStagingState
+  GitStagingState,
+  GitWorktreeResult
 } from '../../shared/session'
 
-export type { GitStatus, GitCommitResult, GitChangedFile, GitBranch }
+export type { GitStatus, GitCommitResult, GitChangedFile, GitBranch, GitWorktreeResult }
 
 const exec = promisify(execFile)
 
@@ -458,8 +460,30 @@ export async function createPullRequest(
   }
 }
 
+/** Parse `git worktree list --porcelain` and return a map of branch name → worktree path */
+async function getWorktreeMap(cwd: string): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  try {
+    const output = await git(cwd, 'worktree', 'list', '--porcelain')
+    let currentPath = ''
+    for (const line of output.split('\n')) {
+      if (line.startsWith('worktree ')) {
+        currentPath = line.slice('worktree '.length)
+      } else if (line.startsWith('branch refs/heads/') && currentPath) {
+        map.set(line.slice('branch refs/heads/'.length), currentPath)
+      }
+    }
+  } catch {
+    /* worktree list not available or not a repo */
+  }
+  return map
+}
+
 export async function listBranches(cwd: string): Promise<GitBranch[]> {
   const branches: GitBranch[] = []
+
+  // Get worktree map so we can annotate branches
+  const worktreeMap = await getWorktreeMap(cwd)
 
   // Local branches sorted by most recent commit
   try {
@@ -476,7 +500,8 @@ export async function listBranches(cwd: string): Promise<GitBranch[]> {
           name,
           isCurrent: head === '*',
           isRemote: false,
-          lastCommitDate
+          lastCommitDate,
+          worktreePath: worktreeMap.get(name) ?? null
         })
       }
     }
@@ -545,4 +570,46 @@ export async function createBranch(cwd: string, branch: string): Promise<GitComm
       error: error instanceof Error ? error.message : String(error)
     }
   }
+}
+
+/**
+ * Create a git worktree for an existing branch.
+ * Defaults the worktree path to `~/.pi-code/worktrees/{repo-name}/{sanitized-branch}`.
+ */
+export async function createWorktree(
+  cwd: string,
+  branch: string,
+  newBranch?: string,
+  worktreePath?: string | null
+): Promise<GitWorktreeResult> {
+  const targetBranch = newBranch ?? branch
+  const sanitizedBranch = targetBranch.replace(/\//g, '-')
+  const repoName = basename(cwd)
+  const resolvedPath =
+    worktreePath ?? join(homedir(), '.pi-code', 'worktrees', repoName, sanitizedBranch)
+
+  const args = newBranch
+    ? ['worktree', 'add', '-b', newBranch, resolvedPath, branch]
+    : ['worktree', 'add', resolvedPath, branch]
+
+  await git(cwd, ...args)
+
+  return {
+    path: resolvedPath,
+    branch: targetBranch
+  }
+}
+
+/**
+ * Remove a git worktree.
+ */
+export async function removeWorktree(
+  cwd: string,
+  worktreePath: string,
+  force?: boolean
+): Promise<void> {
+  const args = ['worktree', 'remove']
+  if (force) args.push('--force')
+  args.push(worktreePath)
+  await git(cwd, ...args)
 }

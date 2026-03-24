@@ -16,7 +16,9 @@ import {
   isGitRepo,
   listBranches,
   checkoutBranch,
-  createBranch
+  createBranch,
+  createWorktree,
+  removeWorktree
 } from '../services/git'
 
 export function registerGitIpc(): void {
@@ -68,5 +70,17 @@ export function registerGitIpc(): void {
 
   ipcMain.handle('git:createBranch', (_event, cwd: string, branch: string) =>
     createBranch(cwd, branch)
+  )
+
+  ipcMain.handle(
+    'git:createWorktree',
+    (_event, cwd: string, branch: string, newBranch?: string, path?: string | null) =>
+      createWorktree(cwd, branch, newBranch, path ?? undefined)
+  )
+
+  ipcMain.handle(
+    'git:removeWorktree',
+    (_event, cwd: string, worktreePath: string, force?: boolean) =>
+      removeWorktree(cwd, worktreePath, force)
   )
 }

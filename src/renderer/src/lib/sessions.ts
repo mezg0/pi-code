@@ -1,6 +1,7 @@
 import type {
   AgentMessage,
   CreateSessionInput,
+  GitBranch,
   ModelInfo,
   Project,
   RpcState,
@@ -18,6 +19,7 @@ export { DEFAULT_AGENT, DEFAULT_MODEL, NEW_SESSION_TITLE } from '../../../shared
 export type {
   AgentMessage,
   CreateSessionInput,
+  GitBranch,
   ModelInfo,
   Project,
   RpcState,

@@ -140,6 +140,8 @@ async function createSessionManagerForSession(sessionId: string): Promise<PiSess
     throw new Error(`Session ${sessionId} has no persisted file`)
   }
 
+  // Always store session files in the project root so they're found on reload.
+  // The agent itself runs in the worktree via agentCwd below.
   const sessionManager = SessionManager.create(session.repoPath)
   sessionManager.newSession({ id: sessionId })
 
@@ -159,8 +161,9 @@ async function createTrackedAgentSession(sessionId: string): Promise<AgentSessio
   const sessionManager = await createSessionManagerForSession(sessionId)
   const { createAgentSession, DefaultResourceLoader } = await loadPiSdk()
 
+  const agentCwd = session.worktreePath ?? session.repoPath
   const resourceLoader = new DefaultResourceLoader({
-    cwd: session.repoPath,
+    cwd: agentCwd,
     systemPromptOverride: () => undefined,
     appendSystemPromptOverride: () => [APPEND_SYSTEM_PROMPT],
     extensionFactories: [planModeExtension, loadSkillExtension]
@@ -169,7 +172,7 @@ async function createTrackedAgentSession(sessionId: string): Promise<AgentSessio
 
   const authStorage = await getAuthStorage()
   const { session: agentSession } = await createAgentSession({
-    cwd: session.repoPath,
+    cwd: agentCwd,
     sessionManager,
     resourceLoader,
     authStorage,

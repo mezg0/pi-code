@@ -13,6 +13,7 @@ import type {
   GitCommitResult,
   GitFileContents,
   GitStatus,
+  GitWorktreeResult,
   ModelInfo,
   Project,
   RpcState,
@@ -163,7 +164,11 @@ const gitApi: GitApi = {
   checkoutBranch: (cwd: string, branch: string) =>
     ipcRenderer.invoke('git:checkoutBranch', cwd, branch) as Promise<GitCommitResult>,
   createBranch: (cwd: string, branch: string) =>
-    ipcRenderer.invoke('git:createBranch', cwd, branch) as Promise<GitCommitResult>
+    ipcRenderer.invoke('git:createBranch', cwd, branch) as Promise<GitCommitResult>,
+  createWorktree: (cwd: string, branch: string, newBranch?: string, path?: string | null) =>
+    ipcRenderer.invoke('git:createWorktree', cwd, branch, newBranch, path) as Promise<GitWorktreeResult>,
+  removeWorktree: (cwd: string, worktreePath: string, force?: boolean) =>
+    ipcRenderer.invoke('git:removeWorktree', cwd, worktreePath, force) as Promise<void>
 }
 
 if (process.contextIsolated) {

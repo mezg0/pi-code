@@ -7,7 +7,12 @@ import {
   useState,
   type ReactNode
 } from 'react'
-import { GitCommitHorizontalIcon, PanelRightCloseIcon, PanelRightOpenIcon } from 'lucide-react'
+import {
+  GitBranchIcon,
+  GitCommitHorizontalIcon,
+  PanelRightCloseIcon,
+  PanelRightOpenIcon
+} from 'lucide-react'
 
 import { BranchPicker } from './branch-picker'
 
@@ -62,7 +67,10 @@ export function AppShell({
   showPanelToggle: boolean
   onAddProject: () => Promise<void>
   onRemoveProject: (project: Project) => Promise<void>
-  onCreateSession: (project: Project) => Promise<void>
+  onCreateSession: (
+    project: Project,
+    options?: { branch?: string | null; worktreePath?: string | null }
+  ) => Promise<void>
   onToggleArchiveSession: (session: Session, archived: boolean) => Promise<void>
 }): React.JSX.Element {
   const [sidebarOpen, setSidebarOpen] = useState(() => loadLeftSidebarOpen())
@@ -80,9 +88,10 @@ export function AppShell({
     return initial
   })
   const sessionGroups = useMemo(() => groupSessions(projects, sessions), [projects, sessions])
-  const activeProjectPath = activeSession?.repoPath
-  const activeToolState = activeProjectPath
-    ? (toolStateByProjectPath[activeProjectPath] ?? { tab: null, open: false })
+  // Use the worktree path when available so each workspace gets its own tool state
+  const activeEffectivePath = activeSession?.worktreePath ?? activeSession?.repoPath
+  const activeToolState = activeEffectivePath
+    ? (toolStateByProjectPath[activeEffectivePath] ?? { tab: null, open: false })
     : { tab: null, open: false }
   const activeToolTab = activeToolState.tab
   const toolPanelOpen = activeToolState.open
@@ -94,18 +103,18 @@ export function AppShell({
 
   const updateActiveToolState = useCallback(
     (updater: (current: ProjectToolPanelState) => ProjectToolPanelState): void => {
-      if (!activeProjectPath) return
+      if (!activeEffectivePath) return
       setToolStateByProjectPath((prev) => {
-        const current = prev[activeProjectPath] ?? { tab: null, open: false }
+        const current = prev[activeEffectivePath] ?? { tab: null, open: false }
         const next = updater(current)
-        saveProjectViewState(activeProjectPath, {
+        saveProjectViewState(activeEffectivePath, {
           toolTab: next.tab,
           toolPanelOpen: next.open
         })
-        return { ...prev, [activeProjectPath]: next }
+        return { ...prev, [activeEffectivePath]: next }
       })
     },
-    [activeProjectPath]
+    [activeEffectivePath]
   )
 
   const setActiveToolTab = useCallback(
@@ -196,7 +205,8 @@ function AppShellContent({
   const [hasPlan, setHasPlan] = useState(false)
   const [dismissedPlanKey, setDismissedPlanKey] = useState<string | null>(null)
   const [currentPlanKey, setCurrentPlanKey] = useState<string | null>(null)
-  const cwd = activeSession?.repoPath
+  const isWorktreeSession = Boolean(activeSession?.worktreePath)
+  const cwd = activeSession?.worktreePath ?? activeSession?.repoPath
   const toolPanelSize = cwd
     ? loadProjectViewState(cwd).toolPanelSize
     : DEFAULT_TOOL_PANEL_SIZE
@@ -398,12 +408,19 @@ function AppShellContent({
         <div className="flex items-center gap-1">
           {cwd ? (
             <>
+              {isWorktreeSession ? (
+                <span className="flex shrink-0 items-center gap-1 rounded-md border border-border/50 bg-muted/50 px-2 py-0.5 text-[11px] text-muted-foreground">
+                  <GitBranchIcon className="size-3" />
+                  Worktree
+                </span>
+              ) : null}
               <BranchPicker
                 cwd={cwd}
                 currentBranch={branchName}
                 disabled={hasChanges}
                 onBranchChanged={checkForChanges}
               />
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -480,7 +497,7 @@ function AppShellContent({
                 activeTab={displayedToolTab}
                 onSelect={setActiveToolTab}
                 onClose={() => setActiveToolTab(null)}
-                cwd={activeSession?.repoPath}
+                cwd={cwd}
                 sessionId={activeSession?.id}
                 hasPlan={planVisible}
                 onDismissPlan={handleDismissPlan}

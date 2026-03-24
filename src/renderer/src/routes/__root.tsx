@@ -24,6 +24,7 @@ import {
   type Session
 } from '@/lib/sessions'
 import { clearProjectViewState } from '@/lib/view-state'
+
 import {
   hasUnseenSessionCompletion,
   loadSessionVisitedAt,
@@ -79,13 +80,18 @@ function RootComponent(): React.JSX.Element {
     await router.invalidate()
   }
 
-  async function handleCreateSession(project: Project): Promise<void> {
+  async function handleCreateSession(
+    project: Project,
+    options?: { branch?: string | null; worktreePath?: string | null }
+  ): Promise<void> {
     const session = await createSession({
-      title: NEW_SESSION_TITLE,
+      title: options?.branch ?? NEW_SESSION_TITLE,
       repoPath: project.repoPath,
       taskInstruction: '',
       agent: DEFAULT_AGENT,
-      model: DEFAULT_MODEL
+      model: DEFAULT_MODEL,
+      branch: options?.branch ?? null,
+      worktreePath: options?.worktreePath ?? null
     })
 
     await router.invalidate()
@@ -93,6 +99,29 @@ function RootComponent(): React.JSX.Element {
   }
 
   async function handleToggleArchiveSession(session: Session, archived: boolean): Promise<void> {
+    // Worktree cleanup: if archiving a session that has a worktree, check if
+    // it's the only session using that worktree and offer to delete it.
+    if (archived && session.worktreePath) {
+      const isOrphaned = !workspace.sessions.some(
+        (s) => s.id !== session.id && s.worktreePath === session.worktreePath && !s.archived
+      )
+      if (isOrphaned) {
+        const displayPath = session.worktreePath.split('/').pop() ?? session.worktreePath
+        // eslint-disable-next-line no-restricted-globals
+        const shouldDelete = confirm(
+          `This session has a worktree at "${displayPath}".\n\nDelete the worktree too?`
+        )
+        if (shouldDelete) {
+          try {
+
+            await window.git.removeWorktree(session.repoPath, session.worktreePath, true)
+          } catch (err) {
+            console.error('Failed to remove worktree:', err)
+          }
+        }
+      }
+    }
+
     const updatedSession = await updateSession(session.id, { archived })
     if (!updatedSession) return
 
