@@ -9,6 +9,8 @@ import {
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { getShortcutDisplay, type ShortcutId } from '@/lib/shortcuts'
 import { BrowserView } from './browser-view'
 import { FilesView } from './files-view'
 import { GitChangesView } from './git-changes-view'
@@ -22,6 +24,7 @@ type ToolTabConfig = {
   label: string
   icon: typeof CodeIcon
   description: string
+  shortcutId: ShortcutId
 }
 
 const TOOL_TABS: ToolTabConfig[] = [
@@ -29,31 +32,36 @@ const TOOL_TABS: ToolTabConfig[] = [
     key: 'plan',
     label: 'Plan',
     icon: FileTextIcon,
-    description: 'Review the latest markdown plan published by the model.'
+    description: 'Review the latest markdown plan published by the model.',
+    shortcutId: 'tab-plan'
   },
   {
     key: 'git',
     label: 'Git',
     icon: FolderGit2Icon,
-    description: 'View uncommitted changes and diffs.'
+    description: 'View uncommitted changes and diffs.',
+    shortcutId: 'tab-git'
   },
   {
     key: 'terminal',
     label: 'Terminal',
     icon: SquareTerminalIcon,
-    description: 'Live shell output for this session. Will use xterm.js in Phase 7.'
+    description: 'Live shell output for this session. Will use xterm.js in Phase 7.',
+    shortcutId: 'tab-terminal'
   },
   {
     key: 'files',
     label: 'Files',
     icon: CodeIcon,
-    description: 'Project file explorer and editor. Coming in Phase 8.'
+    description: 'Project file explorer and editor. Coming in Phase 8.',
+    shortcutId: 'tab-files'
   },
   {
     key: 'browser',
     label: 'Browser',
     icon: MonitorIcon,
-    description: 'Open a local preview URL for this project.'
+    description: 'Open a local preview URL for this project.',
+    shortcutId: 'tab-browser'
   }
 ]
 
@@ -96,16 +104,23 @@ export function ToolPanel({
         <div className="flex items-center gap-0.5">
           {visibleTabs.map((tab) => {
             const Icon = tab.icon
+            const shortcutHint = getShortcutDisplay(tab.shortcutId)
             return (
-              <Button
-                key={tab.key}
-                variant={activeTab === tab.key ? 'secondary' : 'ghost'}
-                size="xs"
-                onClick={() => onSelect(tab.key)}
-              >
-                <Icon data-icon="inline-start" />
-                {tab.label}
-              </Button>
+              <Tooltip key={tab.key}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={activeTab === tab.key ? 'secondary' : 'ghost'}
+                    size="xs"
+                    onClick={() => onSelect(tab.key)}
+                  >
+                    <Icon data-icon="inline-start" />
+                    {tab.label}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {tab.label} <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">{shortcutHint}</kbd>
+                </TooltipContent>
+              </Tooltip>
             )
           })}
         </div>

@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
+  getShortcutDisplay,
+} from '@/lib/shortcuts'
+import {
   ArchiveIcon,
   ChevronRightIcon,
   CircleIcon,
@@ -98,7 +101,7 @@ export function SidebarProjects({
                           <PlusIcon />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="right">New session</TooltipContent>
+                      <TooltipContent side="right">New session <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">{getShortcutDisplay('new-session')}</kbd></TooltipContent>
                     </Tooltip>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
