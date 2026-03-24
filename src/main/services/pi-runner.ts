@@ -28,6 +28,12 @@ import { loadPiSdk } from './pi-sdk'
 import loadSkillExtension from './extensions/load-skill'
 import planModeExtension, { getPlanModeController } from './extensions/plan-mode'
 import { webFetchTool } from './tools/webfetch'
+import {
+  askUserQuestionTool,
+  getPendingQuestion,
+  rejectAllQuestionsForSession,
+  setCurrentSessionId
+} from './tools/question'
 
 type PlanModeStateEntry = {
   type?: string
@@ -176,7 +182,10 @@ async function createTrackedAgentSession(sessionId: string): Promise<AgentSessio
     sessionManager,
     resourceLoader,
     authStorage,
-    customTools: [webFetchTool as unknown as ToolDefinition]
+    customTools: [
+      webFetchTool as unknown as ToolDefinition,
+      askUserQuestionTool as unknown as ToolDefinition
+    ]
   })
 
   // Bind extensions to emit session_start, which lets extensions (e.g. plan-mode)
@@ -416,6 +425,9 @@ export async function sendSessionMessage(
       mimeType: image.mimeType
     }))
 
+    // Set the current session ID so the question tool knows which session it's in
+    setCurrentSessionId(sessionId)
+
     if (agentSession.isStreaming) {
       await agentSession.prompt(text, { streamingBehavior: 'steer', images: piImages })
       // Emit pending messages immediately so the UI shows the queued pill right away
@@ -457,6 +469,7 @@ export async function abortSession(sessionId: string): Promise<boolean> {
 
   try {
     abortingSessions.add(sessionId)
+    rejectAllQuestionsForSession(sessionId)
     await agentSession.abort()
 
     emitStreamingEvent(sessionId, { type: 'agent_end', pendingMessages: [] })
@@ -475,6 +488,7 @@ export async function abortSession(sessionId: string): Promise<boolean> {
 
 export async function disposeSession(sessionId: string): Promise<boolean> {
   pendingAgentSessions.delete(sessionId)
+  rejectAllQuestionsForSession(sessionId)
 
   const agentSession = agentSessions.get(sessionId)
   if (agentSession) {
@@ -484,6 +498,8 @@ export async function disposeSession(sessionId: string): Promise<boolean> {
 
   return removeSession(sessionId)
 }
+
+export { getPendingQuestion } from './tools/question'
 
 export function disposeAllSessions(): void {
   pendingAgentSessions.clear()
