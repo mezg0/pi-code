@@ -24,6 +24,7 @@ import {
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useHotkey } from '@tanstack/react-hotkeys'
+import { onBrowserGrab } from '@/lib/browser-grab'
 import type { AgentMessage, QuestionRequest, Session, SessionImageInput } from '@/lib/sessions'
 import { SHORTCUTS } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
@@ -206,6 +207,34 @@ function SessionPromptInput({
   onStop: () => Promise<void>
 }): React.JSX.Element {
   const [input, setInput] = useState('')
+
+  // Subscribe to react-grab element selections from the BrowserView.
+  // When context is grabbed, append it to the prompt input.
+  useEffect(() => {
+    return onBrowserGrab((event) => {
+      const contextBlock = `\`\`\`html\n${event.content}\n\`\`\`\n\n`
+      setInput((prev) => {
+        // If the input already has content, append on a new line
+        if (prev.trim()) {
+          return prev + '\n' + contextBlock
+        }
+        return contextBlock
+      })
+
+      // Focus the textarea so the user can immediately type their instruction
+      requestAnimationFrame(() => {
+        const textarea = document.querySelector<HTMLTextAreaElement>(
+          'textarea[data-slot="input-group-control"]'
+        )
+        if (textarea) {
+          textarea.focus()
+          // Move cursor to the end
+          textarea.selectionStart = textarea.value.length
+          textarea.selectionEnd = textarea.value.length
+        }
+      })
+    })
+  }, [])
 
   const handleSubmit = useCallback(
     (message: { text: string; files: FileUIPart[] }): void => {
