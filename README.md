@@ -142,6 +142,10 @@ Contributions are welcome! Here's how to get started:
 - The app embeds the pi coding agent SDK — agent sessions, model selection, streaming, and tool execution all happen in the main process and are streamed to the renderer over IPC.
 - Hot-reload works for the renderer. For main process changes, restart the dev server.
 
+## Acknowledgements
+
+This project was heavily inspired by [Cursor Glass](https://cursor.com/glass). Huge thanks to the Cursor team for pioneering the desktop AI coding assistant experience.
+
 ## License
 
 [MIT](./LICENSE)
