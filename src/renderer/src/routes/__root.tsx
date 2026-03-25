@@ -146,21 +146,29 @@ function RootComponent(): React.JSX.Element {
   }
 
   async function handleToggleArchiveSession(session: Session, archived: boolean): Promise<void> {
-    // Worktree cleanup: if archiving a session that has a worktree, check if
-    // it's the only session using that worktree and offer to delete it.
+    // Worktree cleanup: if archiving a session that has a worktree, always
+    // delete the worktree. If there are uncommitted changes, warn first.
     if (archived && session.worktreePath) {
       const isOrphaned = !workspace.sessions.some(
         (s) => s.id !== session.id && s.worktreePath === session.worktreePath && !s.archived
       )
       if (isOrphaned) {
-        const displayPath = session.worktreePath.split('/').pop() ?? session.worktreePath
-        const shouldDelete = await promptWorktreeDelete(session, displayPath)
-        if (shouldDelete) {
-          try {
-            await window.git.removeWorktree(session.repoPath, session.worktreePath, true)
-          } catch (err) {
-            console.error('Failed to remove worktree:', err)
+        // Check for uncommitted changes in the worktree
+        try {
+          const gitStatus = await window.git.status(session.worktreePath)
+          if (gitStatus.hasChanges) {
+            const displayPath = session.worktreePath.split('/').pop() ?? session.worktreePath
+            const confirmed = await promptWorktreeDelete(session, displayPath)
+            if (!confirmed) return // Cancel the archive entirely
           }
+        } catch {
+          // If we can't check status, proceed with deletion anyway
+        }
+
+        try {
+          await window.git.removeWorktree(session.repoPath, session.worktreePath, true)
+        } catch (err) {
+          console.error('Failed to remove worktree:', err)
         }
       }
     }
@@ -220,21 +228,22 @@ function RootComponent(): React.JSX.Element {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete worktree?</AlertDialogTitle>
+            <AlertDialogTitle>Uncommitted changes</AlertDialogTitle>
             <AlertDialogDescription>
-              This session has a worktree at &ldquo;{worktreeArchiveDialog?.displayPath}&rdquo;.
-              Would you like to delete the worktree too?
+              The worktree at &ldquo;{worktreeArchiveDialog?.displayPath}&rdquo; has uncommitted
+              changes that will be lost. Are you sure you want to archive this session and delete the
+              worktree?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => handleWorktreeDialogChoice(false)}>
-              Keep worktree
+              Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={() => handleWorktreeDialogChoice(true)}
             >
-              Delete worktree
+              Archive &amp; delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
