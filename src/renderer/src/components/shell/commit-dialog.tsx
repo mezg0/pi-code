@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { sendSessionMessage } from '@/lib/sessions'
 import type { GitStatus } from '../../../../shared/session'
 
 type CommitAction = 'commit' | 'commit-push' | 'commit-pr'
@@ -26,11 +27,13 @@ type CommitAction = 'commit' | 'commit-push' | 'commit-pr'
 export function CommitDialog({
   open,
   onOpenChange,
-  cwd
+  cwd,
+  sessionId
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   cwd: string | undefined
+  sessionId?: string
 }): React.JSX.Element {
   const [status, setStatus] = useState<GitStatus | null>(null)
   const [loading, setLoading] = useState(false)
@@ -75,6 +78,33 @@ export function CommitDialog({
         message = await window.git.generateMessage(cwd)
       }
 
+      // Dispatch "commit-pr" to the agent session if one is active
+      if (selectedAction === 'commit-pr' && sessionId) {
+        const branch = status.branch || 'HEAD'
+        const title = message.split('\n')[0]
+        const metadata = JSON.stringify({ title, branch, draft: isDraft })
+        const stageCmd = includeUnstaged ? 'git add -A && ' : ''
+        const draftFlag = isDraft ? ' --draft' : ''
+
+        const agentMessage = [
+          `<!--action:commit-pr:${metadata}-->`,
+          '',
+          'Perform the following git workflow:',
+          `1. Stage and commit: \`${stageCmd}git commit -m "${message.replace(/"/g, '\\"')}"\``,
+          '2. Detect the default branch: `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`',
+          '3. Fetch and rebase on the default branch: `git fetch origin && git rebase origin/<default-branch>`',
+          `4. Push: \`git push --force-with-lease origin ${branch}\``,
+          `5. Create a pull request: \`gh pr create --title "${title.replace(/"/g, '\\"')}" --body "<description>"${draftFlag}\``,
+          '   - Write a concise, helpful PR description summarizing the changes and their purpose',
+          '',
+          'Execute each step without asking for confirmation. If any step fails, report the error clearly.'
+        ].join('\n')
+
+        await sendSessionMessage(sessionId, agentMessage)
+        onOpenChange(false)
+        return
+      }
+
       // Step 1: Commit
       const commitResult = await window.git.commit(cwd, message, includeUnstaged)
       if (!commitResult.success) {
@@ -94,7 +124,7 @@ export function CommitDialog({
         }
       }
 
-      // Step 3: Create PR (if needed)
+      // Step 3: Create PR — fallback when no agent session is available
       if (selectedAction === 'commit-pr') {
         const prResult = await window.git.createPR(cwd, message.split('\n')[0], isDraft)
         if (!prResult.success) {

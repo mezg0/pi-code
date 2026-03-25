@@ -466,7 +466,7 @@ function AppShellContent({
         </div>
       </header>
 
-      <CommitDialog open={commitOpen} onOpenChange={handleCommitOpenChange} cwd={cwd} />
+      <CommitDialog open={commitOpen} onOpenChange={handleCommitOpenChange} cwd={cwd} sessionId={activeSession?.id} />
 
       <div className="min-w-0 flex-1 overflow-hidden">
         {showPanelToggle ? (

@@ -4,6 +4,7 @@ import { ChevronRightIcon } from 'lucide-react'
 import { Shimmer } from '@/components/ai-elements/shimmer'
 
 import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message'
+import { ActionCard, parseActionPrefix } from './action-card'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import type { AgentMessage } from '@/lib/sessions'
 import { cn } from '@/lib/utils'
@@ -316,6 +317,18 @@ const StableMessageList = memo(function StableMessageList({
           const text = extractUserText(msg)
           const images = extractUserImages(msg)
           if (!text.trim() && images.length === 0) return null
+
+          // Check for action card prefix (e.g. commit-pr dispatched from the commit dialog)
+          const action = parseActionPrefix(text)
+          if (action) {
+            return (
+              <ActionCard
+                key={`msg-${index}`}
+                type={action.type}
+                metadata={action.metadata}
+              />
+            )
+          }
 
           return (
             <Message from="user" key={`msg-${index}`}>
