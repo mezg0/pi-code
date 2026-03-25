@@ -371,7 +371,7 @@ const StableMessageList = memo(function StableMessageList({
           if (action) {
             return (
               <ActionCard
-                key={`msg-${index}`}
+                key={key}
                 type={action.type}
                 metadata={action.metadata}
               />

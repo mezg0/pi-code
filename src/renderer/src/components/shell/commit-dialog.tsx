@@ -94,8 +94,9 @@ export function CommitDialog({
           '2. Detect the default branch: `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`',
           '3. Fetch and rebase on the default branch: `git fetch origin && git rebase origin/<default-branch>`',
           `4. Push: \`git push --force-with-lease origin ${branch}\``,
-          `5. Create a pull request: \`gh pr create --title "${title.replace(/"/g, '\\"')}" --body "<description>"${draftFlag}\``,
-          '   - Write a concise, helpful PR description summarizing the changes and their purpose',
+          `5. Create a pull request: \`gh pr create --title "<title>" --body "<description>"${draftFlag}\``,
+          '   - Write a proper, human-readable PR title that clearly describes the user-visible impact of the change. Do NOT just copy the commit message as the title.',
+          '   - Write a concise, helpful PR description summarizing the changes and their purpose.',
           '',
           'Execute each step without asking for confirmation. If any step fails, report the error clearly.'
         ].join('\n')
