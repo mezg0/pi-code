@@ -4,6 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerAuthIpc } from './ipc/auth'
 import { registerBrowserIpc } from './ipc/browser'
+import { registerEditorIpc } from './ipc/editor'
 import { registerFilesIpc } from './ipc/files'
 import { registerGitIpc } from './ipc/git'
 import { registerSessionIpc } from './ipc/sessions'
@@ -66,6 +67,7 @@ app.whenReady().then(() => {
   })
 
   registerAuthIpc()
+  registerEditorIpc()
   registerSessionIpc()
   registerTerminalIpc()
   registerBrowserIpc()
