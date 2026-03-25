@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { GitPRStatus, Session } from '@/lib/sessions'
 
 /** How often to re-check PR status (ms) */
-const POLL_INTERVAL = 60_000
+const POLL_INTERVAL = 30_000
 
 type PRStatusMap = Map<string, GitPRStatus>
 
