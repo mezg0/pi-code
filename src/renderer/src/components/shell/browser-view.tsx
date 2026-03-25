@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { CrosshairIcon, ExternalLinkIcon, RefreshCwIcon } from 'lucide-react'
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  CrosshairIcon,
+  ExternalLinkIcon,
+  RefreshCwIcon
+} from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -38,18 +44,58 @@ type WebviewElement = HTMLElement & {
   reload(): void
   loadURL(url: string): Promise<void>
   getURL(): string
+  goBack(): void
+  goForward(): void
+  canGoBack(): boolean
+  canGoForward(): boolean
   executeJavaScript(code: string): Promise<unknown>
   addEventListener(event: string, listener: (...args: unknown[]) => void): void
   removeEventListener(event: string, listener: (...args: unknown[]) => void): void
+}
+
+function NavButton({
+  tooltip,
+  disabled,
+  onClick,
+  children
+}: {
+  tooltip: string
+  disabled?: boolean
+  onClick: () => void
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" size="icon-sm" onClick={onClick} disabled={disabled}>
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{tooltip}</TooltipContent>
+    </Tooltip>
+  )
 }
 
 export function BrowserView({ id }: { id: string }): React.JSX.Element {
   const webviewRef = useRef<WebviewElement>(null)
   const [input, setInput] = useState(() => getStoredUrl(id))
   const [url, setUrl] = useState(() => getStoredUrl(id))
+  const [canGoBack, setCanGoBack] = useState(false)
+  const [canGoForward, setCanGoForward] = useState(false)
   // Tracks whether react-grab is in active selection mode (not just loaded)
   const [grabActive, setGrabActive] = useState(false)
   const hasUrl = !!url
+
+  const updateNavState = useCallback(() => {
+    const webview = webviewRef.current
+    if (!webview) return
+    try {
+      setCanGoBack(webview.canGoBack())
+      setCanGoForward(webview.canGoForward())
+    } catch {
+      // webview may not be ready yet
+    }
+  }, [])
 
   // Inject react-grab into the webview (always inject on dom-ready)
   const injectReactGrab = useCallback(() => {
@@ -85,6 +131,7 @@ export function BrowserView({ id }: { id: string }): React.JSX.Element {
         setInput(currentUrl)
         setUrl(currentUrl)
       }
+      updateNavState()
       // Reset active state on navigation since the page changed
       setGrabActive(false)
     }
@@ -128,7 +175,7 @@ export function BrowserView({ id }: { id: string }): React.JSX.Element {
       webview.removeEventListener('dom-ready', handleDomReady)
       webview.removeEventListener('console-message', handleConsoleMessage)
     }
-  }, [id, hasUrl, injectReactGrab])
+  }, [id, hasUrl, updateNavState, injectReactGrab])
 
   function handleNavigate(): void {
     const nextUrl = normalizeUrl(input)
@@ -139,6 +186,14 @@ export function BrowserView({ id }: { id: string }): React.JSX.Element {
 
   function handleReload(): void {
     webviewRef.current?.reload()
+  }
+
+  function handleGoBack(): void {
+    webviewRef.current?.goBack()
+  }
+
+  function handleGoForward(): void {
+    webviewRef.current?.goForward()
   }
 
   function handleOpenExternal(): void {
@@ -152,7 +207,18 @@ export function BrowserView({ id }: { id: string }): React.JSX.Element {
 
   return (
     <div className="flex size-full min-w-0 flex-col bg-background">
-      <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
+      {/* Navigation bar — inspired by ai-elements WebPreview */}
+      <div className="flex shrink-0 items-center gap-1 border-b border-border p-2">
+        <NavButton tooltip="Back" disabled={!canGoBack} onClick={handleGoBack}>
+          <ArrowLeftIcon />
+        </NavButton>
+        <NavButton tooltip="Forward" disabled={!canGoForward} onClick={handleGoForward}>
+          <ArrowRightIcon />
+        </NavButton>
+        <NavButton tooltip="Reload" disabled={!url} onClick={handleReload}>
+          <RefreshCwIcon />
+        </NavButton>
+
         <Input
           value={input}
           onChange={(event) => setInput(event.currentTarget.value)}
@@ -163,8 +229,9 @@ export function BrowserView({ id }: { id: string }): React.JSX.Element {
             }
           }}
           placeholder="Enter URL (e.g. localhost:3000)"
-          className="h-8"
+          className="h-7 flex-1 text-sm"
         />
+
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -181,14 +248,13 @@ export function BrowserView({ id }: { id: string }): React.JSX.Element {
             {grabActive ? 'Exit' : 'Enter'} element grab mode
           </TooltipContent>
         </Tooltip>
-        <Button variant="ghost" size="icon-sm" onClick={handleReload} disabled={!url}>
-          <RefreshCwIcon />
-        </Button>
-        <Button variant="ghost" size="icon-sm" onClick={handleOpenExternal} disabled={!url}>
+
+        <NavButton tooltip="Open in browser" disabled={!url} onClick={handleOpenExternal}>
           <ExternalLinkIcon />
-        </Button>
+        </NavButton>
       </div>
 
+      {/* Preview body */}
       <div className="min-h-0 flex-1 overflow-hidden bg-background">
         {hasUrl ? (
           <webview
