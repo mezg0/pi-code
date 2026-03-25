@@ -7,6 +7,7 @@ import type { ToolTab } from '@/components/shell/tool-panel'
 const PROJECT_VIEW_STATE_KEY = 'pi.project-view-state'
 const LEFT_SIDEBAR_KEY = 'pi.left-sidebar-open'
 const TOOL_PANEL_SIZE_KEY = 'pi.tool-panel-size'
+const TOOL_PANEL_OPEN_KEY = 'pi.tool-panel-open'
 const BROWSER_URL_PREFIX = 'pi.browser-url:'
 
 // ---------------------------------------------------------------------------
@@ -118,6 +119,28 @@ export function loadToolPanelSize(): number {
 export function saveToolPanelSize(size: number): void {
   try {
     localStorage.setItem(TOOL_PANEL_SIZE_KEY, String(size))
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tool panel open/closed (global, not per-project)
+// ---------------------------------------------------------------------------
+
+export function loadToolPanelOpen(): boolean {
+  try {
+    const raw = localStorage.getItem(TOOL_PANEL_OPEN_KEY)
+    if (raw === 'true') return true
+    return false // default closed
+  } catch {
+    return false
+  }
+}
+
+export function saveToolPanelOpen(open: boolean): void {
+  try {
+    localStorage.setItem(TOOL_PANEL_OPEN_KEY, String(open))
   } catch {
     // Ignore storage errors.
   }

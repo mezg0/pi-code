@@ -32,9 +32,11 @@ import { cn } from '@/lib/utils'
 import {
   loadLeftSidebarOpen,
   loadProjectViewState,
+  loadToolPanelOpen,
   loadToolPanelSize,
   saveLeftSidebarOpen,
   saveProjectViewState,
+  saveToolPanelOpen,
   saveToolPanelSize
 } from '@/lib/view-state'
 import { groupSessions } from '@/lib/workspace'
@@ -42,11 +44,6 @@ import { groupSessions } from '@/lib/workspace'
 import { CommitDialog } from './commit-dialog'
 import { SidebarProjects } from './sidebar-projects'
 import { ToolPanel, type ToolTab } from './tool-panel'
-
-type ProjectToolPanelState = {
-  tab: ToolTab | null
-  open: boolean
-}
 
 export function AppShell({
   projects,
@@ -79,16 +76,14 @@ export function AppShell({
   onToggleArchiveSession: (session: Session, archived: boolean) => Promise<void>
 }): React.JSX.Element {
   const [sidebarOpen, setSidebarOpen] = useState(() => loadLeftSidebarOpen())
-  const [toolStateByProjectPath, setToolStateByProjectPath] = useState<
-    Record<string, ProjectToolPanelState>
+  const [toolPanelOpen, setToolPanelOpen] = useState(() => loadToolPanelOpen())
+  const [toolTabByProjectPath, setToolTabByProjectPath] = useState<
+    Record<string, ToolTab | null>
   >(() => {
-    const initial: Record<string, ProjectToolPanelState> = {}
+    const initial: Record<string, ToolTab | null> = {}
     for (const p of projects) {
       const stored = loadProjectViewState(p.repoPath)
-      initial[p.repoPath] = {
-        tab: stored.toolTab,
-        open: stored.toolPanelOpen
-      }
+      initial[p.repoPath] = stored.toolTab
     }
     return initial
   })
@@ -96,28 +91,21 @@ export function AppShell({
   const prStatusMap = usePRStatus(sessions)
   // Use the worktree path when available so each workspace gets its own tool state
   const activeEffectivePath = activeSession?.worktreePath ?? activeSession?.repoPath
-  const activeToolState = activeEffectivePath
-    ? (toolStateByProjectPath[activeEffectivePath] ?? { tab: null, open: false })
-    : { tab: null, open: false }
-  const activeToolTab = activeToolState.tab
-  const toolPanelOpen = activeToolState.open
+  const activeToolTab = activeEffectivePath
+    ? (toolTabByProjectPath[activeEffectivePath] ?? null)
+    : null
 
   const handleSidebarChange = useCallback((open: boolean): void => {
     setSidebarOpen(open)
     saveLeftSidebarOpen(open)
   }, [])
 
-  const updateActiveToolState = useCallback(
-    (updater: (current: ProjectToolPanelState) => ProjectToolPanelState): void => {
+  const updateActiveToolTab = useCallback(
+    (tab: ToolTab | null): void => {
       if (!activeEffectivePath) return
-      setToolStateByProjectPath((prev) => {
-        const current = prev[activeEffectivePath] ?? { tab: null, open: false }
-        const next = updater(current)
-        saveProjectViewState(activeEffectivePath, {
-          toolTab: next.tab,
-          toolPanelOpen: next.open
-        })
-        return { ...prev, [activeEffectivePath]: next }
+      setToolTabByProjectPath((prev) => {
+        saveProjectViewState(activeEffectivePath, { toolTab: tab })
+        return { ...prev, [activeEffectivePath]: tab }
       })
     },
     [activeEffectivePath]
@@ -125,33 +113,39 @@ export function AppShell({
 
   const setActiveToolTab = useCallback(
     (next: ToolTab | null | ((current: ToolTab | null) => ToolTab | null)): void => {
-      updateActiveToolState((current) => {
-        const visibleCurrent = current.open ? current.tab : null
-        const resolved = typeof next === 'function' ? next(visibleCurrent) : next
+      const visibleCurrent = toolPanelOpen ? activeToolTab : null
+      const resolved = typeof next === 'function' ? next(visibleCurrent) : next
 
-        if (resolved === null) {
-          return { ...current, open: false }
-        }
+      if (resolved === null) {
+        setToolPanelOpen(false)
+        saveToolPanelOpen(false)
+        return
+      }
 
-        return { tab: resolved, open: true }
-      })
+      updateActiveToolTab(resolved)
+      if (!toolPanelOpen) {
+        setToolPanelOpen(true)
+        saveToolPanelOpen(true)
+      }
     },
-    [updateActiveToolState]
+    [toolPanelOpen, activeToolTab, updateActiveToolTab]
   )
 
   const toggleToolPanel = useCallback((): void => {
-    updateActiveToolState((current) =>
-      current.open
-        ? { ...current, open: false }
-        : { tab: current.tab ?? 'git', open: true }
-    )
-  }, [updateActiveToolState])
+    const nextOpen = !toolPanelOpen
+    setToolPanelOpen(nextOpen)
+    saveToolPanelOpen(nextOpen)
+    // If opening and no tab is set, default to git
+    if (nextOpen && !activeToolTab) {
+      updateActiveToolTab('git')
+    }
+  }, [toolPanelOpen, activeToolTab, updateActiveToolTab])
 
   const rememberActiveToolTab = useCallback(
     (tab: ToolTab): void => {
-      updateActiveToolState((current) => ({ ...current, tab }))
+      updateActiveToolTab(tab)
     },
-    [updateActiveToolState]
+    [updateActiveToolTab]
   )
 
   return (
