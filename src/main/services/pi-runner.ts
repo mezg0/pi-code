@@ -34,7 +34,6 @@ import { getPlanModeController } from './extensions/plan-mode'
 import { webFetchTool } from './tools/webfetch'
 import {
   askUserQuestionTool,
-  getPendingQuestion,
   rejectAllQuestionsForSession,
   setCurrentSessionId
 } from './tools/question'
