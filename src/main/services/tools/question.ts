@@ -113,104 +113,96 @@ export function rejectAllQuestionsForSession(sessionId: string): void {
   }
 }
 
-// ── Tool definition ─────────────────────────────────────────────────
+// ── Tool factory ────────────────────────────────────────────────────
 
 type QuestionDetails = {
   questions: Array<{ question: string; header: string }>
   answers: QuestionAnswer[]
 }
 
-export const askUserQuestionTool: ToolDefinition<typeof QUESTION_PARAMS, QuestionDetails> = {
-  name: 'ask_user_question',
-  label: 'Question',
-  description: DESCRIPTION,
-  promptSnippet: 'Ask the user questions during execution.',
-  promptGuidelines: [
-    'Use this tool when you need user input to make a decision or clarify requirements.',
-    'Do not use this tool for simple yes/no confirmations that can be inferred from context.'
-  ],
-  parameters: QUESTION_PARAMS,
-  async execute(_toolCallId, params, signal) {
-    if (!params.questions.length) {
-      throw new Error('At least one question is required.')
-    }
-
-    const requestId = generateRequestId()
-
-    // We need to figure out the sessionId. Unfortunately the tool execute
-    // signature for custom tools doesn't expose the session context.
-    // We'll use a module-level sessionId that gets set before tool execution.
-    const sessionId = currentSessionId ?? 'unknown'
-
-    const request: QuestionRequest = {
-      id: requestId,
-      sessionId,
-      questions: params.questions.map((q) => ({
-        question: q.question,
-        header: q.header,
-        options: q.options.map((o) => ({ label: o.label, description: o.description })),
-        multiple: q.multiple,
-        custom: true // Always enable custom answers
-      }))
-    }
-
-    const answers = await new Promise<QuestionAnswer[]>((resolve, reject) => {
-      pending.set(requestId, { sessionId, request, resolve, reject })
-
-      // Emit to renderer to show question UI
-      emitToRenderers('sessions:question', { sessionId, request })
-
-      // If the tool call is aborted, reject the pending question
-      if (signal) {
-        signal.addEventListener(
-          'abort',
-          () => {
-            if (pending.has(requestId)) {
-              pending.delete(requestId)
-              emitToRenderers('sessions:question', { sessionId, request: null })
-              reject(new Error('Question was aborted'))
-            }
-          },
-          { once: true }
-        )
+/**
+ * Create a session-scoped ask_user_question tool.
+ * Each agent session gets its own tool instance with the sessionId captured
+ * in a closure, so concurrent sessions never cross-contaminate.
+ */
+export function createAskUserQuestionTool(
+  sessionId: string
+): ToolDefinition<typeof QUESTION_PARAMS, QuestionDetails> {
+  return {
+    name: 'ask_user_question',
+    label: 'Question',
+    description: DESCRIPTION,
+    promptSnippet: 'Ask the user questions during execution.',
+    promptGuidelines: [
+      'Use this tool when you need user input to make a decision or clarify requirements.',
+      'Do not use this tool for simple yes/no confirmations that can be inferred from context.'
+    ],
+    parameters: QUESTION_PARAMS,
+    async execute(_toolCallId, params, signal) {
+      if (!params.questions.length) {
+        throw new Error('At least one question is required.')
       }
-    })
 
-    function formatAnswer(answer: QuestionAnswer | undefined): string {
-      if (!answer?.length) return 'Unanswered'
-      return answer.join(', ')
-    }
+      const requestId = generateRequestId()
 
-    const formatted = params.questions
-      .map((q, i) => `"${q.question}"="${formatAnswer(answers[i])}"`)
-      .join(', ')
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `User has answered your questions: ${formatted}. You can now continue with the user's answers in mind.`
-        }
-      ],
-      details: {
+      const request: QuestionRequest = {
+        id: requestId,
+        sessionId,
         questions: params.questions.map((q) => ({
           question: q.question,
-          header: q.header
-        })),
-        answers
+          header: q.header,
+          options: q.options.map((o) => ({ label: o.label, description: o.description })),
+          multiple: q.multiple,
+          custom: true // Always enable custom answers
+        }))
+      }
+
+      const answers = await new Promise<QuestionAnswer[]>((resolve, reject) => {
+        pending.set(requestId, { sessionId, request, resolve, reject })
+
+        // Emit to renderer to show question UI
+        emitToRenderers('sessions:question', { sessionId, request })
+
+        // If the tool call is aborted, reject the pending question
+        if (signal) {
+          signal.addEventListener(
+            'abort',
+            () => {
+              if (pending.has(requestId)) {
+                pending.delete(requestId)
+                emitToRenderers('sessions:question', { sessionId, request: null })
+                reject(new Error('Question was aborted'))
+              }
+            },
+            { once: true }
+          )
+        }
+      })
+
+      function formatAnswer(answer: QuestionAnswer | undefined): string {
+        if (!answer?.length) return 'Unanswered'
+        return answer.join(', ')
+      }
+
+      const formatted = params.questions
+        .map((q, i) => `"${q.question}"="${formatAnswer(answers[i])}"`)
+        .join(', ')
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `User has answered your questions: ${formatted}. You can now continue with the user's answers in mind.`
+          }
+        ],
+        details: {
+          questions: params.questions.map((q) => ({
+            question: q.question,
+            header: q.header
+          })),
+          answers
+        }
       }
     }
   }
-}
-
-// ── Session context for tool execution ──────────────────────────────
-
-let currentSessionId: string | null = null
-
-/**
- * Set the current session ID before a tool execution.
- * This is needed because custom tools don't receive session context.
- */
-export function setCurrentSessionId(sessionId: string | null): void {
-  currentSessionId = sessionId
 }

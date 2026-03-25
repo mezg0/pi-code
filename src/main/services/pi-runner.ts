@@ -29,10 +29,8 @@ import loadSkillExtension from './extensions/load-skill'
 import planModeExtension, { getPlanModeController } from './extensions/plan-mode'
 import { webFetchTool } from './tools/webfetch'
 import {
-  askUserQuestionTool,
-  getPendingQuestion,
-  rejectAllQuestionsForSession,
-  setCurrentSessionId
+  createAskUserQuestionTool,
+  rejectAllQuestionsForSession
 } from './tools/question'
 
 type PlanModeStateEntry = {
@@ -184,7 +182,7 @@ async function createTrackedAgentSession(sessionId: string): Promise<AgentSessio
     authStorage,
     customTools: [
       webFetchTool as unknown as ToolDefinition,
-      askUserQuestionTool as unknown as ToolDefinition
+      createAskUserQuestionTool(sessionId) as unknown as ToolDefinition
     ]
   })
 
@@ -424,9 +422,6 @@ export async function sendSessionMessage(
       data: image.data,
       mimeType: image.mimeType
     }))
-
-    // Set the current session ID so the question tool knows which session it's in
-    setCurrentSessionId(sessionId)
 
     if (agentSession.isStreaming) {
       await agentSession.prompt(text, { streamingBehavior: 'steer', images: piImages })
