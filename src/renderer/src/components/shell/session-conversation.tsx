@@ -184,6 +184,15 @@ export function SessionConversation(props: {
 
   // --- Session keyboard shortcuts ---
   useHotkey(
+    SHORTCUTS['stop-response'].keys,
+    useCallback(() => {
+      if (props.isLoading || props.isStreaming) {
+        void props.onStop()
+      }
+    }, [props.isLoading, props.isStreaming, props.onStop])
+  )
+
+  useHotkey(
     SHORTCUTS['scroll-to-bottom'].keys,
     useCallback(() => scrollToBottom(), [scrollToBottom])
   )
