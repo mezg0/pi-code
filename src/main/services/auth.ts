@@ -1,5 +1,4 @@
 import { shell, BrowserWindow } from 'electron'
-import { ensureBuiltinOAuthProvidersRegistered } from './extensions/builtin'
 import { loadPiSdk } from './pi-sdk'
 
 import type { AuthStorage } from '@mariozechner/pi-coding-agent'
@@ -27,16 +26,6 @@ export type AuthProviderInfo = {
 
 let authStorage: AuthStorage | null = null
 
-async function bootstrapBuiltinOAuthProviders(): Promise<boolean> {
-  try {
-    await ensureBuiltinOAuthProvidersRegistered()
-    return true
-  } catch (error) {
-    console.error('[auth] Failed to bootstrap built-in OAuth providers:', error)
-    return false
-  }
-}
-
 export async function getAuthStorage(): Promise<AuthStorage> {
   if (authStorage) return authStorage
 
@@ -46,8 +35,6 @@ export async function getAuthStorage(): Promise<AuthStorage> {
 }
 
 export async function listAuthProviders(): Promise<AuthProviderInfo[]> {
-  await bootstrapBuiltinOAuthProviders()
-
   const storage = await getAuthStorage()
   const results: AuthProviderInfo[] = []
 
@@ -133,11 +120,6 @@ export async function removeCredential(providerId: string): Promise<boolean> {
 
 export async function oauthLogin(providerId: string): Promise<boolean> {
   try {
-    const bootstrapped = await bootstrapBuiltinOAuthProviders()
-    if (!bootstrapped) {
-      return false
-    }
-
     const storage = await getAuthStorage()
 
     await storage.login(providerId, {

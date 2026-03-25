@@ -26,10 +26,7 @@ import {
 } from './session-manager'
 import { getAuthStorage } from './auth'
 import { loadPiSdk } from './pi-sdk'
-import {
-  getBuiltinExtensionFactories,
-  getCursorAgentExtensionPaths
-} from './extensions/builtin'
+import { getBuiltinExtensionFactories } from './extensions/builtin'
 import { getPlanModeController } from './extensions/plan-mode'
 import { webFetchTool } from './tools/webfetch'
 import {
@@ -156,8 +153,7 @@ async function createTrackedAgentSession(sessionId: string): Promise<AgentSessio
     cwd: agentCwd,
     systemPromptOverride: () => undefined,
     appendSystemPromptOverride: () => [APPEND_SYSTEM_PROMPT],
-    extensionFactories: getBuiltinExtensionFactories(),
-    additionalExtensionPaths: getCursorAgentExtensionPaths()
+    extensionFactories: getBuiltinExtensionFactories()
   })
   await resourceLoader.reload()
 
