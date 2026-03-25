@@ -101,8 +101,10 @@ export function CommitDialog({
           'Execute each step without asking for confirmation. If any step fails, report the error clearly.'
         ].join('\n')
 
-        await sendSessionMessage(sessionId, agentMessage)
         onOpenChange(false)
+        // Fire-and-forget: sendSessionMessage awaits the full agent run,
+        // so we must not block on it — the dialog should close immediately.
+        sendSessionMessage(sessionId, agentMessage)
         return
       }
 
