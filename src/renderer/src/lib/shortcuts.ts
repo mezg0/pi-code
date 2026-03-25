@@ -25,6 +25,7 @@ export const SHORTCUTS = {
   'open-settings': { label: 'Open settings', keys: 'Mod+,' },
 
   // Session-scoped
+  'open-in-editor': { label: 'Open in editor', keys: 'Mod+O' },
   'toggle-panel': { label: 'Toggle panel', keys: 'Mod+E' },
   'focus-input': { label: 'Focus chat input', keys: 'Mod+K' },
   'toggle-plan-mode': { label: 'Toggle plan mode', keys: 'Mod+Shift+P' },

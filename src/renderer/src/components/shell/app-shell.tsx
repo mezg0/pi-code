@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 
 import { BranchPicker } from './branch-picker'
+import { OpenInEditor } from './open-in-editor'
 import { usePRStatus } from '@/hooks/use-pr-status'
 
 import type { GroupImperativeHandle } from 'react-resizable-panels'
@@ -444,6 +445,8 @@ function AppShellContent({
                   Commit changes <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">{getShortcutDisplay('open-commit')}</kbd>
                 </TooltipContent>
               </Tooltip>
+
+              <OpenInEditor cwd={cwd} />
             </>
           ) : null}
           {showPanelToggle ? (

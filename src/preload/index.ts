@@ -32,6 +32,7 @@ import type {
   TerminalExitPayload,
   UpdateSessionInput
 } from '../shared/session'
+import type { EditorApi, EditorId } from '../shared/editor'
 
 const api: SessionApi = {
   projects: {
@@ -189,11 +190,19 @@ const gitApi: GitApi = {
     ipcRenderer.invoke('git:prStatus', cwd, branch) as Promise<GitPRStatus>
 }
 
+const editorApi: EditorApi = {
+  getAvailableEditors: () =>
+    ipcRenderer.invoke('editor:available') as Promise<EditorId[]>,
+  openInEditor: (cwd: string, editorId: EditorId) =>
+    ipcRenderer.invoke('editor:open', cwd, editorId) as Promise<void>
+}
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
     contextBridge.exposeInMainWorld('auth', authApi)
+    contextBridge.exposeInMainWorld('editor', editorApi)
     contextBridge.exposeInMainWorld('terminal', terminalApi)
     contextBridge.exposeInMainWorld('files', filesApi)
     contextBridge.exposeInMainWorld('git', gitApi)
@@ -205,6 +214,7 @@ if (process.contextIsolated) {
     electron: typeof electronAPI
     api: SessionApi
     auth: AuthApi
+    editor: EditorApi
     terminal: TerminalApi
     files: FilesApi
     git: GitApi
@@ -213,6 +223,7 @@ if (process.contextIsolated) {
   unsafeWindow.electron = electronAPI
   unsafeWindow.api = api
   unsafeWindow.auth = authApi
+  unsafeWindow.editor = editorApi
   unsafeWindow.terminal = terminalApi
   unsafeWindow.files = filesApi
   unsafeWindow.git = gitApi
