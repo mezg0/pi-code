@@ -485,6 +485,7 @@ function SessionMenuEntry({
   prStatus?: GitPRStatus
   onToggleArchiveSession: (session: Session, archived: boolean) => Promise<void>
 }): React.JSX.Element {
+  const [isArchiving, setIsArchiving] = useState(false)
   const isBusy = BUSY_STATUSES.has(session.status)
   const isFailed = FAILED_STATUSES.has(session.status)
 
@@ -503,9 +504,14 @@ function SessionMenuEntry({
   }
 
   return (
-    <SidebarMenuItem>
+    <SidebarMenuItem className={isArchiving ? 'pointer-events-none opacity-50' : undefined}>
       <SidebarMenuButton isActive={isActive} tooltip={session.title} asChild>
-        <Link to="/sessions/$sessionId/overview" params={{ sessionId: session.id }}>
+        <Link
+          to="/sessions/$sessionId/overview"
+          params={{ sessionId: session.id }}
+          tabIndex={isArchiving ? -1 : undefined}
+          aria-disabled={isArchiving}
+        >
           {hasQuestion ? (
             <CircleIcon className="!size-1.5 fill-amber-500 text-amber-500" />
           ) : isBusy ? (
@@ -526,10 +532,12 @@ function SessionMenuEntry({
           <SidebarMenuAction
             showOnHover
             aria-label="Archive session"
+            disabled={isArchiving}
             onClick={(event) => {
               event.preventDefault()
               event.stopPropagation()
-              void onToggleArchiveSession(session, true)
+              setIsArchiving(true)
+              void onToggleArchiveSession(session, true).finally(() => setIsArchiving(false))
             }}
           >
             <ArchiveIcon />
