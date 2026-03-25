@@ -16,6 +16,7 @@ import {
 
 import { BranchPicker } from './branch-picker'
 import { OpenInEditor } from './open-in-editor'
+import { useModelShortcuts } from '@/hooks/use-model-shortcuts'
 import { usePRStatus } from '@/hooks/use-pr-status'
 
 import type { GroupImperativeHandle } from 'react-resizable-panels'
@@ -395,6 +396,9 @@ function AppShellContent({
   useHotkey(SHORTCUTS['tab-terminal'].keys, useCallback(() => setActiveToolTab('terminal'), [setActiveToolTab]), { enabled: hasSession })
   useHotkey(SHORTCUTS['tab-files'].keys, useCallback(() => setActiveToolTab('files'), [setActiveToolTab]), { enabled: hasSession })
   useHotkey(SHORTCUTS['tab-browser'].keys, useCallback(() => setActiveToolTab('browser'), [setActiveToolTab]), { enabled: hasSession })
+
+  // Model shortcuts (Mod+Shift+1–9)
+  useModelShortcuts(activeSession?.id)
 
   return (
     <SidebarInset className="flex min-w-0 flex-col overflow-hidden bg-background">

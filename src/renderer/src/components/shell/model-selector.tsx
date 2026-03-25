@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BrainIcon, CheckIcon, ChevronDownIcon } from 'lucide-react'
 
 import {
@@ -10,6 +10,7 @@ import {
   ModelSelectorItem,
   ModelSelectorList,
   ModelSelectorName,
+  ModelSelectorShortcut,
   ModelSelectorTrigger
 } from '@/components/ai-elements/model-selector'
 import {
@@ -18,6 +19,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
+import { MODEL_SHORTCUT_APPLIED_EVENT } from '@/hooks/use-model-shortcuts'
+import { loadModelShortcuts } from '@/lib/model-shortcuts'
 import { cn } from '@/lib/utils'
 import {
   getAgentState,
@@ -27,6 +30,7 @@ import {
   type ModelInfo,
   type RpcState
 } from '@/lib/sessions'
+import { getModelShortcutDisplay } from '@/lib/shortcuts'
 
 function formatProviderLabel(provider: string): string {
   switch (provider) {
@@ -62,7 +66,7 @@ export function ModelSelector({ sessionId }: { sessionId: string }): React.JSX.E
   const [models, setModels] = useState<ModelInfo[]>([])
   const [open, setOpen] = useState(false)
 
-  useEffect(() => {
+  const refreshState = useCallback(() => {
     void Promise.all([getAgentState(sessionId), getAvailableModels(sessionId)]).then(
       ([rpcState, availableModels]) => {
         setState(rpcState)
@@ -70,6 +74,17 @@ export function ModelSelector({ sessionId }: { sessionId: string }): React.JSX.E
       }
     )
   }, [sessionId])
+
+  useEffect(() => {
+    refreshState()
+  }, [refreshState])
+
+  // Refresh when a model shortcut changes the model externally
+  useEffect(() => {
+    const handler = (): void => refreshState()
+    window.addEventListener(MODEL_SHORTCUT_APPLIED_EVENT, handler)
+    return () => window.removeEventListener(MODEL_SHORTCUT_APPLIED_EVENT, handler)
+  }, [refreshState])
 
   const handleModelSelect = useCallback(
     async (model: ModelInfo): Promise<void> => {
@@ -93,6 +108,19 @@ export function ModelSelector({ sessionId }: { sessionId: string }): React.JSX.E
   const thinkingLevels = state?.availableThinkingLevels ?? []
   const supportsReasoning = thinkingLevels.length > 1
   const providers = [...new Set(models.map((model) => model.provider))]
+
+  // Build a reverse lookup: "provider:modelId" → shortcut display string
+  const shortcutHints = useMemo(() => {
+    if (!open) return {}
+    const map: Record<string, string> = {}
+    const shortcuts = loadModelShortcuts()
+    for (const [slot, shortcut] of Object.entries(shortcuts)) {
+      if (shortcut) {
+        map[`${shortcut.provider}:${shortcut.modelId}`] = getModelShortcutDisplay(slot)
+      }
+    }
+    return map
+  }, [open])
 
   return (
     <>
@@ -120,6 +148,11 @@ export function ModelSelector({ sessionId }: { sessionId: string }): React.JSX.E
                       <ModelSelectorName>{model.id}</ModelSelectorName>
                       {model.reasoning ? (
                         <span className="text-[10px] text-muted-foreground">reasoning</span>
+                      ) : null}
+                      {shortcutHints[`${model.provider}:${model.id}`] ? (
+                        <ModelSelectorShortcut>
+                          {shortcutHints[`${model.provider}:${model.id}`]}
+                        </ModelSelectorShortcut>
                       ) : null}
                       {model.id === currentModelId && model.provider === currentProvider ? (
                         <CheckIcon className="ml-auto size-3.5" />
