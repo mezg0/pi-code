@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AlertCircleIcon, ArrowDownIcon, CornerDownRightIcon, SettingsIcon, WaypointsIcon, XIcon } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useStickToBottom } from 'use-stick-to-bottom'
@@ -25,6 +25,7 @@ import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { onBrowserGrab } from '@/lib/browser-grab'
+import { isScrollContainerNearBottom } from '@/lib/chat-scroll'
 import type { AgentMessage, QuestionRequest, Session, SessionImageInput } from '@/lib/sessions'
 import { SHORTCUTS } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
@@ -53,6 +54,18 @@ export function SessionConversation(props: {
     initial: 'instant'
   })
 
+  // Keep a ref to the scroll container for passing to child components
+  // (e.g. PiMessages for scroll-preserving prepend)
+  const scrollContainerRef = useRef<HTMLElement | null>(null)
+  const setScrollRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      scrollContainerRef.current = el
+      // Forward to useStickToBottom
+      ;(scrollRef as React.RefCallback<HTMLDivElement>)(el)
+    },
+    [scrollRef]
+  )
+
   // Scroll to bottom on initial mount once messages are rendered
   const hasMessages = props.messages.length > 0
   useEffect(() => {
@@ -76,6 +89,99 @@ export function SessionConversation(props: {
     return () => clearTimeout(id)
   }, [isAtBottom])
 
+  // --- Step 5: Composer / footer resize compensation ---
+  // When the bottom-stack (pending pills + prompt) changes height, the scroll
+  // viewport shrinks or grows. If the user is near bottom, restick. If not,
+  // preserve the visible viewport position.
+  const footerRef = useRef<HTMLDivElement>(null)
+  const footerHeightRef = useRef(0)
+
+  useLayoutEffect(() => {
+    const footerEl = footerRef.current
+    if (!footerEl || typeof ResizeObserver === 'undefined') return
+
+    footerHeightRef.current = footerEl.getBoundingClientRect().height
+
+    const observer = new ResizeObserver(([entry]) => {
+      const nextHeight = entry.contentRect.height
+      const prevHeight = footerHeightRef.current
+      footerHeightRef.current = nextHeight
+
+      if (Math.abs(nextHeight - prevHeight) < 0.5) return
+
+      const scrollEl = scrollContainerRef.current
+      if (!scrollEl) return
+
+      if (isScrollContainerNearBottom(scrollEl)) {
+        // User is at/near bottom — restick
+        scrollToBottom('instant')
+      } else {
+        // User is reading above — compensate so their viewport stays put.
+        // When the footer grows, the scroll viewport shrinks from the bottom,
+        // which pushes content up. We offset scrollTop by the delta.
+        const delta = nextHeight - prevHeight
+        scrollEl.scrollTop += delta
+      }
+    })
+
+    observer.observe(footerEl)
+    return () => observer.disconnect()
+  }, [scrollToBottom])
+
+  // --- Step 6: Interaction-anchor compensation ---
+  // When the user clicks an expand/collapse trigger (Thinking…, summary, etc.),
+  // record the clicked element's position, then after the next frame adjust
+  // scrollTop so the element doesn't jump away.
+  const pendingInteractionAnchorRef = useRef<{ element: HTMLElement; top: number } | null>(null)
+  const pendingAnchorFrameRef = useRef<number | null>(null)
+
+  const cancelPendingAnchorAdjustment = useCallback(() => {
+    if (pendingAnchorFrameRef.current !== null) {
+      cancelAnimationFrame(pendingAnchorFrameRef.current)
+      pendingAnchorFrameRef.current = null
+    }
+  }, [])
+
+  const onMessagesClickCapture = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      const scrollEl = scrollContainerRef.current
+      if (!scrollEl || !(event.target instanceof Element)) return
+
+      const trigger = event.target.closest<HTMLElement>(
+        'button, summary, [role="button"], [data-scroll-anchor-target]'
+      )
+      if (!trigger || !scrollEl.contains(trigger)) return
+      if (trigger.closest('[data-scroll-anchor-ignore]')) return
+
+      pendingInteractionAnchorRef.current = {
+        element: trigger,
+        top: trigger.getBoundingClientRect().top
+      }
+
+      cancelPendingAnchorAdjustment()
+      pendingAnchorFrameRef.current = requestAnimationFrame(() => {
+        pendingAnchorFrameRef.current = null
+        const anchor = pendingInteractionAnchorRef.current
+        pendingInteractionAnchorRef.current = null
+        const activeScrollEl = scrollContainerRef.current
+        if (!anchor || !activeScrollEl) return
+        if (!anchor.element.isConnected || !activeScrollEl.contains(anchor.element)) return
+
+        const nextTop = anchor.element.getBoundingClientRect().top
+        const delta = nextTop - anchor.top
+        if (Math.abs(delta) < 0.5) return
+
+        activeScrollEl.scrollTop += delta
+      })
+    },
+    [cancelPendingAnchorAdjustment]
+  )
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => cancelPendingAnchorAdjustment()
+  }, [cancelPendingAnchorAdjustment])
+
   // --- Session keyboard shortcuts ---
   useHotkey(
     SHORTCUTS['scroll-to-bottom'].keys,
@@ -96,11 +202,12 @@ export function SessionConversation(props: {
     <div className="flex h-full min-h-0 flex-col">
       <div className="relative min-h-0 flex-1">
         <div
-          ref={scrollRef}
+          ref={setScrollRef}
           className="h-full overflow-x-hidden overflow-y-auto overscroll-y-contain px-4 py-4 sm:px-5 [overflow-anchor:none]"
           style={{
             maskImage: 'linear-gradient(to bottom, transparent, black 32px, black)'
           }}
+          onClickCapture={onMessagesClickCapture}
         >
           <div ref={contentRef} className="mx-auto flex min-h-full w-full max-w-[700px] flex-col">
             {props.messages.length === 0 && !props.isStreaming && !props.isLoading && (
@@ -117,6 +224,7 @@ export function SessionConversation(props: {
                 messages={props.messages}
                 isStreaming={props.isStreaming}
                 streamingMessage={props.streamingMessage}
+                scrollContainerRef={scrollContainerRef}
               />
               {props.errorMessage && (
                 <SessionError
@@ -144,6 +252,8 @@ export function SessionConversation(props: {
         </Button>
       </div>
 
+      {/* Footer stack — observed for height changes to compensate scroll position */}
+      <div ref={footerRef} className="shrink-0">
       {/* Loading indicator — visible while the agent is working */}
       <div
         className={cn(
@@ -185,6 +295,7 @@ export function SessionConversation(props: {
           />
         </div>
       </div>
+      </div>{/* /footer stack */}
     </div>
   )
 }

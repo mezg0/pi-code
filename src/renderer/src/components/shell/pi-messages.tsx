@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRightIcon } from 'lucide-react'
 
 import { Shimmer } from '@/components/ai-elements/shimmer'
@@ -27,11 +27,29 @@ type PiMessage = {
   toolCallId?: string
   isError?: boolean
   details?: unknown
+  timestamp?: number
   [key: string]: unknown
 }
 
 const INITIAL_VISIBLE = 20
+const LOAD_MORE_BATCH = 20
 const EMPTY_PENDING_TOOL_CALLS = new Set<string>()
+
+/**
+ * Produce a stable React key for a message.
+ * Prefer role + timestamp (unique per message) so that prepending/appending
+ * never causes index-based key collisions.
+ */
+function stableMessageKey(msg: PiMessage, index: number): string {
+  if (msg.role === 'toolResult' && typeof msg.toolCallId === 'string') {
+    return `tr-${msg.toolCallId}`
+  }
+  if (typeof msg.timestamp === 'number') {
+    return `${msg.role}-${msg.timestamp}`
+  }
+  // Fallback — should be rare once all messages carry timestamps
+  return `${msg.role}-idx-${index}`
+}
 
 function isTextBlock(block: ContentBlock): block is TextBlock {
   return block.type === 'text' && 'text' in block && typeof (block as TextBlock).text === 'string'
@@ -158,9 +176,14 @@ function getToolSubtitle(name: string, args: unknown): string | undefined {
   }
 }
 
-function LoadMoreTrigger({ onLoadMore }: { onLoadMore: () => void }): React.JSX.Element {
+function LoadMoreTrigger({
+  onLoadMore,
+  scrollContainerRef
+}: {
+  onLoadMore: () => void
+  scrollContainerRef: React.RefObject<HTMLElement | null>
+}): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
-  const anchorRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     const el = ref.current
@@ -169,14 +192,25 @@ function LoadMoreTrigger({ onLoadMore }: { onLoadMore: () => void }): React.JSX.
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          const anchor = el.nextElementSibling as HTMLElement | null
-          if (anchorRef.current !== anchor) {
-            anchorRef.current = anchor
+          const scrollEl = scrollContainerRef.current
+          if (!scrollEl) {
+            onLoadMore()
+            return
           }
 
+          // Snapshot scroll geometry BEFORE the state update
+          const prevScrollTop = scrollEl.scrollTop
+          const prevScrollHeight = scrollEl.scrollHeight
+
           onLoadMore()
+
+          // After React renders the new rows, compensate scrollTop
+          // so the viewport content stays in place.
           requestAnimationFrame(() => {
-            anchorRef.current?.scrollIntoView({ block: 'start' })
+            const delta = scrollEl.scrollHeight - prevScrollHeight
+            if (delta > 0) {
+              scrollEl.scrollTop = prevScrollTop + delta
+            }
           })
         }
       },
@@ -185,7 +219,7 @@ function LoadMoreTrigger({ onLoadMore }: { onLoadMore: () => void }): React.JSX.
 
     observer.observe(el)
     return () => observer.disconnect()
-  }, [onLoadMore])
+  }, [onLoadMore, scrollContainerRef])
 
   return <div ref={ref} className="h-1" />
 }
@@ -231,7 +265,7 @@ const ToolCallRowComponent = memo(function ToolCallRowComponent({
   const subtitle = getToolSubtitle(toolCall.name, toolCall.arguments)
 
   return (
-    <div className="flex items-center gap-2 px-3 py-0.5 text-[13px]">
+    <div className="flex min-h-[28px] items-center gap-2 px-3 py-0.5 text-[13px]">
       {pending ? (
         <Shimmer as="span" className="shrink-0 font-medium" duration={1.5} spread={1}>
           {title}
@@ -239,8 +273,15 @@ const ToolCallRowComponent = memo(function ToolCallRowComponent({
       ) : (
         <span className="shrink-0 font-medium text-muted-foreground">{title}</span>
       )}
-      {!pending && subtitle ? (
-        <span className="min-w-0 truncate text-muted-foreground/70">{subtitle}</span>
+      {subtitle ? (
+        <span
+          className={cn(
+            'min-w-0 truncate text-muted-foreground/70',
+            pending && 'opacity-50'
+          )}
+        >
+          {subtitle}
+        </span>
       ) : null}
     </div>
   )
@@ -299,26 +340,33 @@ const AssistantMessageDisplay = memo(function AssistantMessageDisplay({
 
 const StableMessageList = memo(function StableMessageList({
   displayMessages,
+  globalIndexOffset,
   hasMore,
   onLoadMore,
-  toolResultsById
+  toolResultsById,
+  scrollContainerRef
 }: {
   displayMessages: PiMessage[]
+  globalIndexOffset: number
   hasMore: boolean
   onLoadMore: () => void
   toolResultsById: Map<string, PiMessage>
+  scrollContainerRef: React.RefObject<HTMLElement | null>
 }): React.JSX.Element {
   return (
     <>
-      {hasMore && <LoadMoreTrigger onLoadMore={onLoadMore} />}
-      {displayMessages.map((msg, index) => {
+      {hasMore && <LoadMoreTrigger onLoadMore={onLoadMore} scrollContainerRef={scrollContainerRef} />}
+      {displayMessages.map((msg, localIndex) => {
+        const globalIndex = globalIndexOffset + localIndex
+        const key = stableMessageKey(msg, globalIndex)
+
         if (msg.role === 'user' || msg.role === 'user-with-attachments') {
           const text = extractUserText(msg)
           const images = extractUserImages(msg)
           if (!text.trim() && images.length === 0) return null
 
           return (
-            <Message from="user" key={`msg-${index}`}>
+            <Message from="user" key={key}>
               <MessageContent>
                 {images.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
@@ -343,7 +391,7 @@ const StableMessageList = memo(function StableMessageList({
         if (msg.role === 'assistant') {
           return (
             <AssistantMessageDisplay
-              key={`msg-${index}`}
+              key={key}
               message={msg}
               toolResultsById={toolResultsById}
               pendingToolCalls={EMPTY_PENDING_TOOL_CALLS}
@@ -387,11 +435,13 @@ const StreamingAssistantMessage = memo(function StreamingAssistantMessage({
 export function PiMessages({
   messages,
   isStreaming,
-  streamingMessage
+  streamingMessage,
+  scrollContainerRef
 }: {
   messages: AgentMessage[]
   isStreaming: boolean
   streamingMessage: AgentMessage | null
+  scrollContainerRef: React.RefObject<HTMLElement | null>
 }): React.JSX.Element {
   const piMessages = messages as unknown as PiMessage[]
   const streamMsg = streamingMessage as PiMessage | null
@@ -421,24 +471,47 @@ export function PiMessages({
     () => piMessages.filter((msg) => msg.role !== 'toolResult'),
     [piMessages]
   )
-  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
-  const hasMore = visibleCount < visibleMessages.length
+
+  // Anchored start-index model: instead of sliding a tail window (which
+  // shifts ALL messages when new ones arrive), we keep a stable start index.
+  // New messages appended at the end naturally become visible without
+  // disturbing already-rendered rows.
+  const [startIndex, setStartIndex] = useState(() =>
+    Math.max(0, visibleMessages.length - INITIAL_VISIBLE)
+  )
+
+  // When the message list changes (e.g. session switch via key prop),
+  // reset the start index.
+  const prevLengthRef = useRef(visibleMessages.length)
+  useLayoutEffect(() => {
+    const prevLength = prevLengthRef.current
+    prevLengthRef.current = visibleMessages.length
+
+    // If the list shrank dramatically (session switch / clear), reset
+    if (visibleMessages.length < prevLength - LOAD_MORE_BATCH) {
+      setStartIndex(Math.max(0, visibleMessages.length - INITIAL_VISIBLE))
+    }
+  }, [visibleMessages.length])
+
+  const hasMore = startIndex > 0
   const displayMessages = useMemo(
-    () => (hasMore ? visibleMessages.slice(-visibleCount) : visibleMessages),
-    [hasMore, visibleCount, visibleMessages]
+    () => visibleMessages.slice(startIndex),
+    [startIndex, visibleMessages]
   )
 
   const loadMore = useCallback(() => {
-    setVisibleCount((prev) => Math.min(prev + 20, visibleMessages.length))
-  }, [visibleMessages.length])
+    setStartIndex((prev) => Math.max(0, prev - LOAD_MORE_BATCH))
+  }, [])
 
   return (
     <>
       <StableMessageList
         displayMessages={displayMessages}
+        globalIndexOffset={startIndex}
         hasMore={hasMore}
         onLoadMore={loadMore}
         toolResultsById={toolResultsById}
+        scrollContainerRef={scrollContainerRef}
       />
 
       {showStreaming && (
