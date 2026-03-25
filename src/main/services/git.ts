@@ -54,7 +54,7 @@ export async function isGitRepo(cwd: string): Promise<boolean> {
 export async function getGitStatus(cwd: string): Promise<GitStatus> {
   const branch = await git(cwd, 'rev-parse', '--abbrev-ref', 'HEAD')
 
-  const statusOutput = await git(cwd, 'status', '--porcelain')
+  const statusOutput = await git(cwd, 'status', '--porcelain', '-uall')
   const lines = statusOutput.split('\n').filter(Boolean)
 
   let staged = 0
@@ -102,7 +102,7 @@ export async function getGitStatus(cwd: string): Promise<GitStatus> {
 }
 
 export async function getChangedFiles(cwd: string): Promise<GitChangedFile[]> {
-  const statusOutput = await git(cwd, 'status', '--porcelain')
+  const statusOutput = await git(cwd, 'status', '--porcelain', '-uall')
   const lines = statusOutput.split('\n').filter(Boolean)
   const files: GitChangedFile[] = []
 
@@ -341,7 +341,7 @@ export async function revertAll(cwd: string): Promise<GitCommitResult> {
 }
 
 export async function generateCommitMessage(cwd: string): Promise<string> {
-  const statusOutput = await git(cwd, 'status', '--porcelain')
+  const statusOutput = await git(cwd, 'status', '--porcelain', '-uall')
   const lines = statusOutput.split('\n').filter(Boolean)
 
   if (lines.length === 0) return 'No changes'
