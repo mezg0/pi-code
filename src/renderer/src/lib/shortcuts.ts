@@ -39,6 +39,17 @@ export const SHORTCUTS = {
   'tab-files': { label: 'Files tab', keys: 'Mod+4' },
   'tab-browser': { label: 'Browser tab', keys: 'Mod+5' },
 
+  // Model shortcuts (user-configurable model + thinking level combos)
+  'model-1': { label: 'Model shortcut 1', keys: 'Mod+Shift+1' },
+  'model-2': { label: 'Model shortcut 2', keys: 'Mod+Shift+2' },
+  'model-3': { label: 'Model shortcut 3', keys: 'Mod+Shift+3' },
+  'model-4': { label: 'Model shortcut 4', keys: 'Mod+Shift+4' },
+  'model-5': { label: 'Model shortcut 5', keys: 'Mod+Shift+5' },
+  'model-6': { label: 'Model shortcut 6', keys: 'Mod+Shift+6' },
+  'model-7': { label: 'Model shortcut 7', keys: 'Mod+Shift+7' },
+  'model-8': { label: 'Model shortcut 8', keys: 'Mod+Shift+8' },
+  'model-9': { label: 'Model shortcut 9', keys: 'Mod+Shift+9' },
+
   // Context-specific
   'save-file': { label: 'Save file', keys: 'Mod+S' },
 } as const satisfies Record<string, ShortcutDef>
@@ -51,4 +62,12 @@ export type ShortcutId = keyof typeof SHORTCUTS
  */
 export function getShortcutDisplay(id: ShortcutId): string {
   return formatForDisplay(SHORTCUTS[id].keys)
+}
+
+/**
+ * Get display string for a model shortcut slot (1-9).
+ */
+export function getModelShortcutDisplay(slot: string): string {
+  const id = `model-${slot}` as ShortcutId
+  return id in SHORTCUTS ? formatForDisplay(SHORTCUTS[id].keys) : `⇧${slot}`
 }
