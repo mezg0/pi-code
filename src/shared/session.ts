@@ -295,6 +295,7 @@ export type AuthProviderInfo = {
   id: string
   name: string
   isOAuth: boolean
+  supportsApiKey: boolean
   hasCredential: boolean
   credentialType?: 'api_key' | 'oauth' | 'env'
 }

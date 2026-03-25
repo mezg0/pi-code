@@ -91,9 +91,9 @@ function ApiKeysSection(): React.JSX.Element {
   }, [loadProviders])
 
   const apiKeyProviders = providers.filter(
-    (p) => !p.isOAuth || (p.isOAuth && p.credentialType !== 'oauth')
+    (provider) => provider.supportsApiKey && provider.credentialType !== 'oauth'
   )
-  const oauthProviders = providers.filter((p) => p.isOAuth)
+  const oauthProviders = providers.filter((provider) => provider.isOAuth)
 
   if (loading) {
     return (

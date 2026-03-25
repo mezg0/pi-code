@@ -28,6 +28,15 @@ import {
   type RpcState
 } from '@/lib/sessions'
 
+function formatProviderLabel(provider: string): string {
+  switch (provider) {
+    case 'cursor-agent':
+      return 'Cursor'
+    default:
+      return provider
+  }
+}
+
 function FooterButton({
   children,
   className,
@@ -99,7 +108,7 @@ export function ModelSelector({ sessionId }: { sessionId: string }): React.JSX.E
           <ModelSelectorList>
             <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
             {providers.map((provider) => (
-              <ModelSelectorGroup heading={provider} key={provider}>
+              <ModelSelectorGroup heading={formatProviderLabel(provider)} key={provider}>
                 {models
                   .filter((model) => model.provider === provider)
                   .map((model) => (
