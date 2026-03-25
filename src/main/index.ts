@@ -11,10 +11,6 @@ import { registerSessionIpc } from './ipc/sessions'
 import { registerTerminalIpc } from './ipc/terminal'
 import { disposeAllBrowsers } from './services/browser'
 import { disposeAllWatchers } from './services/file-watcher'
-import {
-  disposeBuiltinProviderBootstrap,
-  ensureBuiltinOAuthProvidersRegistered
-} from './services/extensions/builtin'
 import { disposeAllSessions } from './services/pi-runner'
 import { disposeAllTerminals } from './services/terminal'
 
@@ -79,17 +75,12 @@ app.whenReady().then(() => {
   registerGitIpc()
   createWindow()
 
-  void ensureBuiltinOAuthProvidersRegistered().catch((error) => {
-    console.error('[main] Failed to bootstrap built-in OAuth providers:', error)
-  })
-
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
 app.on('before-quit', () => {
-  disposeBuiltinProviderBootstrap()
   disposeAllBrowsers()
   disposeAllTerminals()
   disposeAllSessions()

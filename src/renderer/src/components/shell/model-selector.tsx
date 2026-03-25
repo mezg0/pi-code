@@ -34,8 +34,6 @@ import { getModelShortcutDisplay } from '@/lib/shortcuts'
 
 function formatProviderLabel(provider: string): string {
   switch (provider) {
-    case 'cursor-agent':
-      return 'Cursor'
     default:
       return provider
   }
