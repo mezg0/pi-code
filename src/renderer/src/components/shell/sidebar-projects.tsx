@@ -9,6 +9,8 @@ import {
   EllipsisIcon,
   FolderPlusIcon,
   GitBranchIcon,
+  GitMergeIcon,
+  GitPullRequestIcon,
   LoaderCircleIcon,
   LoaderIcon,
   PlusIcon,
@@ -60,7 +62,7 @@ import {
   SidebarMenuItem
 } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import type { GitBranch, Project, Session, SessionStatus } from '@/lib/sessions'
+import type { GitBranch, GitPRStatus, Project, Session, SessionStatus } from '@/lib/sessions'
 import type { SessionGroup } from '@/lib/workspace'
 
 const BUSY_STATUSES = new Set<SessionStatus>(['queued', 'starting', 'running', 'stopping'])
@@ -71,6 +73,7 @@ export function SidebarProjects({
   activeSession,
   unreadSessionIds,
   questionSessionIds,
+  prStatusMap,
   onAddProject,
   onRemoveProject,
   onCreateSession,
@@ -80,6 +83,7 @@ export function SidebarProjects({
   activeSession: Session | null
   unreadSessionIds: Set<string>
   questionSessionIds: Set<string>
+  prStatusMap: Map<string, GitPRStatus>
   onAddProject: () => Promise<void>
   onRemoveProject: (project: Project) => Promise<void>
   onCreateSession: (
@@ -142,6 +146,7 @@ export function SidebarProjects({
                             isActive={session.id === activeSession?.id}
                             isUnread={unreadSessionIds.has(session.id)}
                             hasQuestion={questionSessionIds.has(session.id)}
+                            prStatus={prStatusMap.get(session.id)}
                             onToggleArchiveSession={onToggleArchiveSession}
                           />
                         ))}
@@ -470,16 +475,32 @@ function SessionMenuEntry({
   isActive,
   isUnread,
   hasQuestion,
+  prStatus,
   onToggleArchiveSession
 }: {
   session: Session
   isActive: boolean
   isUnread: boolean
   hasQuestion: boolean
+  prStatus?: GitPRStatus
   onToggleArchiveSession: (session: Session, archived: boolean) => Promise<void>
 }): React.JSX.Element {
   const isBusy = BUSY_STATUSES.has(session.status)
   const isFailed = FAILED_STATUSES.has(session.status)
+
+  // Determine the worktree/PR icon for sessions that have a worktree
+  let worktreeIcon: React.ReactNode = null
+  if (session.worktreePath) {
+    if (prStatus?.state === 'merged') {
+      worktreeIcon = <GitMergeIcon className="size-3 text-purple-500" />
+    } else if (prStatus?.state === 'open') {
+      worktreeIcon = <GitPullRequestIcon className="size-3 text-green-500" />
+    } else if (prStatus?.state === 'closed') {
+      worktreeIcon = <GitPullRequestIcon className="size-3 text-red-500" />
+    } else {
+      worktreeIcon = <GitBranchIcon className="size-3 text-muted-foreground" />
+    }
+  }
 
   return (
     <SidebarMenuItem>
@@ -493,9 +514,9 @@ function SessionMenuEntry({
             <CircleXIcon className="size-3 text-destructive" />
           ) : isUnread ? (
             <CircleIcon className="!size-1.5 fill-primary text-primary" />
-          ) : session.worktreePath ? (
-            <GitBranchIcon className="size-3 text-muted-foreground" />
-          ) : null}
+          ) : (
+            worktreeIcon
+          )}
           <span className="truncate">{session.title}</span>
         </Link>
       </SidebarMenuButton>

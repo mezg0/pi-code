@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 
 import { BranchPicker } from './branch-picker'
+import { usePRStatus } from '@/hooks/use-pr-status'
 
 import type { GroupImperativeHandle } from 'react-resizable-panels'
 
@@ -92,6 +93,7 @@ export function AppShell({
     return initial
   })
   const sessionGroups = useMemo(() => groupSessions(projects, sessions), [projects, sessions])
+  const prStatusMap = usePRStatus(sessions)
   // Use the worktree path when available so each workspace gets its own tool state
   const activeEffectivePath = activeSession?.worktreePath ?? activeSession?.repoPath
   const activeToolState = activeEffectivePath
@@ -159,6 +161,7 @@ export function AppShell({
         activeSession={activeSession}
         unreadSessionIds={unreadSessionIds}
         questionSessionIds={questionSessionIds}
+        prStatusMap={prStatusMap}
         onAddProject={onAddProject}
         onRemoveProject={onRemoveProject}
         onCreateSession={onCreateSession}

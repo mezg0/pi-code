@@ -10,11 +10,12 @@ import type {
   GitBranch,
   GitFileContents,
   GitFileStatus,
+  GitPRStatus,
   GitStagingState,
   GitWorktreeResult
 } from '../../shared/session'
 
-export type { GitStatus, GitCommitResult, GitChangedFile, GitBranch, GitWorktreeResult }
+export type { GitStatus, GitCommitResult, GitChangedFile, GitBranch, GitPRStatus, GitWorktreeResult }
 
 const exec = promisify(execFile)
 
@@ -612,4 +613,30 @@ export async function removeWorktree(
   if (force) args.push('--force')
   args.push(worktreePath)
   await git(cwd, ...args)
+}
+
+/**
+ * Check the PR status for a branch using the GitHub CLI.
+ * Returns whether a PR exists, its state (open/merged/closed), and URL.
+ */
+export async function getPRStatus(cwd: string, branch: string): Promise<GitPRStatus> {
+  try {
+    const result = await exec('gh', ['pr', 'view', branch, '--json', 'state,url'], {
+      cwd,
+      maxBuffer: 10 * 1024 * 1024
+    })
+    const data = JSON.parse(result.stdout.trim()) as { state: string; url: string }
+    const state =
+      data.state === 'MERGED'
+        ? 'merged'
+        : data.state === 'CLOSED'
+          ? 'closed'
+          : data.state === 'OPEN'
+            ? 'open'
+            : null
+    return { hasPR: true, state, url: data.url ?? null }
+  } catch {
+    // No PR found for this branch, or gh CLI not available
+    return { hasPR: false, state: null, url: null }
+  }
 }

@@ -203,6 +203,12 @@ export type GitWorktreeResult = {
   branch: string
 }
 
+export type GitPRStatus = {
+  hasPR: boolean
+  state: 'open' | 'merged' | 'closed' | null
+  url: string | null
+}
+
 export type GitApi = {
   isRepo(cwd: string): Promise<boolean>
   status(cwd: string): Promise<GitStatus>
@@ -228,6 +234,7 @@ export type GitApi = {
     path?: string | null
   ): Promise<GitWorktreeResult>
   removeWorktree(cwd: string, worktreePath: string, force?: boolean): Promise<void>
+  getPRStatus(cwd: string, branch: string): Promise<GitPRStatus>
 }
 
 export type FileEntry = {
