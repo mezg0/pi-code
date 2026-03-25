@@ -3,6 +3,7 @@ import { promisify } from 'util'
 import { readFile, unlink } from 'fs/promises'
 import { basename, join } from 'path'
 import { homedir } from 'os'
+import { buildCommitMessage } from '../../shared/commit-message'
 import type {
   GitStatus,
   GitCommitResult,
@@ -343,63 +344,7 @@ export async function revertAll(cwd: string): Promise<GitCommitResult> {
 
 export async function generateCommitMessage(cwd: string): Promise<string> {
   const statusOutput = await git(cwd, 'status', '--porcelain', '-uall')
-  const lines = statusOutput.split('\n').filter(Boolean)
-
-  if (lines.length === 0) return 'No changes'
-
-  const added: string[] = []
-  const modified: string[] = []
-  const deleted: string[] = []
-  const renamed: string[] = []
-
-  for (const line of lines) {
-    const status = line.substring(0, 2)
-    const filePath = line.substring(3).split(' -> ').pop()!
-    const fileName = filePath.split('/').pop()!
-
-    if (status.includes('A') || status.startsWith('??')) {
-      added.push(fileName)
-    } else if (status.includes('D')) {
-      deleted.push(fileName)
-    } else if (status.includes('R')) {
-      renamed.push(fileName)
-    } else {
-      modified.push(fileName)
-    }
-  }
-
-  const parts: string[] = []
-
-  if (added.length === 1 && modified.length === 0 && deleted.length === 0) {
-    return `Add ${added[0]}`
-  }
-  if (deleted.length === 1 && modified.length === 0 && added.length === 0) {
-    return `Remove ${deleted[0]}`
-  }
-  if (modified.length === 1 && added.length === 0 && deleted.length === 0) {
-    return `Update ${modified[0]}`
-  }
-
-  if (added.length > 0) parts.push(`add ${added.length} file${added.length > 1 ? 's' : ''}`)
-  if (modified.length > 0)
-    parts.push(`update ${modified.length} file${modified.length > 1 ? 's' : ''}`)
-  if (deleted.length > 0)
-    parts.push(`remove ${deleted.length} file${deleted.length > 1 ? 's' : ''}`)
-  if (renamed.length > 0)
-    parts.push(`rename ${renamed.length} file${renamed.length > 1 ? 's' : ''}`)
-
-  const allPaths = lines.map((l) => l.substring(3))
-  const dirs = allPaths.map((p) => p.split('/').slice(0, -1).join('/'))
-  const uniqueDirs = [...new Set(dirs.filter(Boolean))]
-
-  if (uniqueDirs.length === 1) {
-    const prefix = uniqueDirs[0]
-    const action = parts.join(', ')
-    return `${action} in ${prefix}`
-  }
-
-  const msg = parts.join(', ')
-  return msg.charAt(0).toUpperCase() + msg.slice(1)
+  return buildCommitMessage(statusOutput.split('\n'))
 }
 
 export async function commitChanges(
