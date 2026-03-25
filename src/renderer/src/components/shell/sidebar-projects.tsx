@@ -259,25 +259,19 @@ function NewSessionButton({
     }
   }, [menuOpen, fetchBranches])
 
-  /** Create a worktree from a branch. If the branch is already checked out,
-   *  auto-create a new branch name based off it. */
-  async function handleWorktreeFromBranch(branch: string, alreadyCheckedOut: boolean): Promise<void> {
+  /** Create a worktree from a branch. Always creates a new branch off the
+   *  selected base so the original branch is never locked into a worktree. */
+  async function handleWorktreeFromBranch(branch: string): Promise<void> {
     setCreating(true)
     try {
-      let newBranch: string | undefined
-      let sessionBranch = branch
-
-      if (alreadyCheckedOut) {
-        // Generate a short random suffix so the user can just click and go
-        const suffix = Math.random().toString(36).slice(2, 7)
-        newBranch = `${branch}-wt-${suffix}`
-        sessionBranch = newBranch
-      }
+      // Always create a fresh branch so the base branch stays available
+      const suffix = Math.random().toString(36).slice(2, 7)
+      const newBranch = `${branch}-wt-${suffix}`
 
       const result = await window.git.createWorktree(project.repoPath, branch, newBranch)
       setMenuOpen(false)
       await onCreateSession(project, {
-        branch: sessionBranch,
+        branch: newBranch,
         worktreePath: result.path
       })
     } catch (err) {
@@ -395,24 +389,16 @@ function NewSessionButton({
 
                 <DropdownMenuSeparator />
 
-                {branches.map((branch) => {
-                  const alreadyCheckedOut = branch.isCurrent || Boolean(branch.worktreePath)
-                  return (
+                {branches.map((branch) => (
                     <DropdownMenuItem
                       key={branch.name}
                       disabled={creating}
-                      onClick={() => void handleWorktreeFromBranch(branch.name, alreadyCheckedOut)}
+                      onClick={() => void handleWorktreeFromBranch(branch.name)}
                     >
                       <GitBranchIcon className="size-3 text-muted-foreground" />
                       <span className="truncate">{branch.name}</span>
-                      {alreadyCheckedOut ? (
-                        <span className="ml-auto text-[10px] text-muted-foreground">
-                          → new branch
-                        </span>
-                      ) : null}
                     </DropdownMenuItem>
-                  )
-                })}
+                  ))}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
           </>
