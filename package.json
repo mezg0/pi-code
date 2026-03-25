@@ -57,6 +57,7 @@
     "motion": "^12.38.0",
     "nanoid": "^5.1.7",
     "node-pty": "^1.1.0",
+    "pi-cursor-agent": "0.4.2",
     "radix-ui": "^1.4.3",
     "react-diff-viewer-continued": "^4.2.0",
     "react-grab": "^0.1.29",

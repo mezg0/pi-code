@@ -30,7 +30,6 @@ import { getAgentMessages, onAgentMessages, type Project, type Session } from '@
 import { getShortcutDisplay, SHORTCUTS } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 import {
-  DEFAULT_TOOL_PANEL_SIZE,
   loadLeftSidebarOpen,
   loadProjectViewState,
   loadToolPanelSize,
