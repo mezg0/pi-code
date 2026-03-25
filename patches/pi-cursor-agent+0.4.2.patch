@@ -1,0 +1,55 @@
+diff --git a/node_modules/pi-cursor-agent/src/bridge/pi-to-cursor/request-builder.ts b/node_modules/pi-cursor-agent/src/bridge/pi-to-cursor/request-builder.ts
+index 27341ba..432fd37 100644
+--- a/node_modules/pi-cursor-agent/src/bridge/pi-to-cursor/request-builder.ts
++++ b/node_modules/pi-cursor-agent/src/bridge/pi-to-cursor/request-builder.ts
+@@ -277,23 +277,33 @@ export function buildRunRequest(
+     params.state,
+   );
+ 
+-  const conversationState =
+-    cached && cached.rootPromptMessagesJson.length > 0
+-      ? cached
+-      : new ConversationStateStructureClass({
+-          rootPromptMessagesJson: [systemPromptId],
+-          turns,
+-          todos: [],
+-          pendingToolCalls: [],
+-          previousWorkspaceUris: [],
+-          fileStates: {},
+-          fileStatesV2: {},
+-          summaryArchives: [],
+-          turnTimings: [],
+-          subagentStates: {},
+-          selfSummaryCount: 0,
+-          readPaths: [],
+-        });
++  let conversationState: ConversationStateStructureClass;
++  if (cached && cached.rootPromptMessagesJson.length > 0) {
++    // Reuse cached state but always refresh workspace-sensitive fields
++    // so the Cursor agent sees the current project context, not stale
++    // workspace references from a previous session/project.
++    conversationState = cached as ConversationStateStructureClass;
++    conversationState.rootPromptMessagesJson = [systemPromptId];
++    conversationState.previousWorkspaceUris = [];
++    conversationState.fileStates = {};
++    conversationState.fileStatesV2 = {};
++    conversationState.readPaths = [];
++  } else {
++    conversationState = new ConversationStateStructureClass({
++      rootPromptMessagesJson: [systemPromptId],
++      turns,
++      todos: [],
++      pendingToolCalls: [],
++      previousWorkspaceUris: [],
++      fileStates: {},
++      fileStatesV2: {},
++      summaryArchives: [],
++      turnTimings: [],
++      subagentStates: {},
++      selfSummaryCount: 0,
++      readPaths: [],
++    });
++  }
+ 
+   const modelDetails = new ModelDetails({
+     modelId: params.model.id,
