@@ -12,6 +12,7 @@ import type {
   GitChangedFile,
   GitCommitResult,
   GitFileContents,
+  GitPRStatus,
   GitStatus,
   GitWorktreeResult,
   ModelInfo,
@@ -183,7 +184,9 @@ const gitApi: GitApi = {
   createWorktree: (cwd: string, branch: string, newBranch?: string, path?: string | null) =>
     ipcRenderer.invoke('git:createWorktree', cwd, branch, newBranch, path) as Promise<GitWorktreeResult>,
   removeWorktree: (cwd: string, worktreePath: string, force?: boolean) =>
-    ipcRenderer.invoke('git:removeWorktree', cwd, worktreePath, force) as Promise<void>
+    ipcRenderer.invoke('git:removeWorktree', cwd, worktreePath, force) as Promise<void>,
+  getPRStatus: (cwd: string, branch: string) =>
+    ipcRenderer.invoke('git:prStatus', cwd, branch) as Promise<GitPRStatus>
 }
 
 if (process.contextIsolated) {

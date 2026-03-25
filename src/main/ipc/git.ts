@@ -18,7 +18,8 @@ import {
   checkoutBranch,
   createBranch,
   createWorktree,
-  removeWorktree
+  removeWorktree,
+  getPRStatus
 } from '../services/git'
 
 export function registerGitIpc(): void {
@@ -82,5 +83,9 @@ export function registerGitIpc(): void {
     'git:removeWorktree',
     (_event, cwd: string, worktreePath: string, force?: boolean) =>
       removeWorktree(cwd, worktreePath, force)
+  )
+
+  ipcMain.handle('git:prStatus', (_event, cwd: string, branch: string) =>
+    getPRStatus(cwd, branch)
   )
 }
