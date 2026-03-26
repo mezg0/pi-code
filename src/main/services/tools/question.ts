@@ -1,5 +1,6 @@
 import { BrowserWindow } from 'electron'
 import type { ToolDefinition } from '@mariozechner/pi-coding-agent'
+import { publishServerEvent } from '@pi-code/server/event-bus'
 import { Type } from '@sinclair/typebox'
 import type { QuestionAnswer, QuestionRequest } from '@pi-code/shared/session'
 
@@ -55,6 +56,8 @@ function generateRequestId(): string {
 }
 
 function emitToRenderers(channel: string, payload: unknown): void {
+  publishServerEvent(channel, payload)
+
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send(channel, payload)
   }

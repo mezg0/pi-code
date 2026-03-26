@@ -7,6 +7,7 @@ import type {
   ToolDefinition
 } from '@mariozechner/pi-coding-agent'
 import SYSTEM_PROMPT from './app-system-prompt.md?raw'
+import { publishServerEvent } from '@pi-code/server/event-bus'
 import { cloneStreamingSnapshot } from '@pi-code/shared/streaming-contract'
 import { formatUserFacingError } from '@pi-code/shared/format-error'
 import { deriveSessionTitle, NEW_SESSION_TITLE } from '@pi-code/shared/session-defaults'
@@ -57,6 +58,8 @@ const abortingSessions = new Set<string>()
 type ThinkingLevel = Parameters<AgentSession['setThinkingLevel']>[0]
 
 function emitToRenderers(channel: string, payload: unknown): void {
+  publishServerEvent(channel, payload)
+
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send(channel, payload)
   }

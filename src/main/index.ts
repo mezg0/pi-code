@@ -1,6 +1,7 @@
 import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { createServer } from '@pi-code/server'
 import icon from '../../resources/icon.png?asset'
 import { registerAuthIpc } from './ipc/auth'
 import { registerBrowserIpc } from './ipc/browser'
@@ -13,6 +14,8 @@ import { disposeAllBrowsers } from './services/browser'
 import { disposeAllWatchers } from './services/file-watcher'
 import { disposeAllSessions } from './services/pi-runner'
 import { disposeAllTerminals } from './services/terminal'
+
+let sidecarServer: Awaited<ReturnType<typeof createServer>> | null = null
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -73,6 +76,19 @@ app.whenReady().then(() => {
   registerBrowserIpc()
   registerFilesIpc()
   registerGitIpc()
+
+  void createServer({
+    hostname: process.env.PI_SERVER_HOST ?? '127.0.0.1',
+    port: Number(process.env.PI_SERVER_PORT ?? '4310')
+  })
+    .then((server) => {
+      sidecarServer = server
+      console.info(`[main] pi-code server listening on ${server.url}`)
+    })
+    .catch((error) => {
+      console.error('[main] Failed to start pi-code server:', error)
+    })
+
   createWindow()
 
   app.on('activate', () => {
@@ -81,6 +97,11 @@ app.whenReady().then(() => {
 })
 
 app.on('before-quit', () => {
+  void sidecarServer?.stop().catch((error) => {
+    console.error('[main] Failed to stop pi-code server:', error)
+  })
+
+  disposeBuiltinProviderBootstrap()
   disposeAllBrowsers()
   disposeAllTerminals()
   disposeAllSessions()
