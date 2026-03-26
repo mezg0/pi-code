@@ -36,6 +36,102 @@ const INITIAL_VISIBLE = 20
 const LOAD_MORE_BATCH = 20
 const EMPTY_PENDING_TOOL_CALLS = new Set<string>()
 
+// Tools grouped into a collapsible "Gathered context" row.
+const CONTEXT_GROUP_TOOLS = new Set(['read', 'grep', 'find', 'ls'])
+
+// Tools grouped into a collapsible "Edited files" row.
+const EDIT_GROUP_TOOLS = new Set(['write', 'edit'])
+
+type ToolGroupKind = 'context' | 'edit'
+
+type ToolEntry = { toolCall: ToolCallBlock; pending: boolean }
+
+type RenderRow =
+  | { type: 'text'; key: string; text: string }
+  | { type: 'thinking'; key: string; text: string }
+  | { type: 'tool'; key: string; toolCall: ToolCallBlock; pending: boolean }
+  | { type: 'toolGroup'; key: string; group: ToolGroupKind; tools: ToolEntry[] }
+
+function toolGroupKind(name: string): ToolGroupKind | null {
+  if (CONTEXT_GROUP_TOOLS.has(name)) return 'context'
+  if (EDIT_GROUP_TOOLS.has(name)) return 'edit'
+  return null
+}
+
+/**
+ * Convert an assistant message's content blocks into grouped render rows.
+ *
+ * Consecutive context-gathering tools and consecutive edit/write tools are
+ * each merged into a single `toolGroup` row when 2+ appear in a run.
+ * A single groupable tool in isolation stays as a normal `tool` row.
+ * Different group kinds break each other's runs.
+ */
+function buildRenderRows(
+  blocks: ContentBlock[],
+  toolResultsById: Map<string, PiMessage>,
+  pendingToolCalls: Set<string>
+): RenderRow[] {
+  const rows: RenderRow[] = []
+  let currentRun: ToolEntry[] = []
+  let currentKind: ToolGroupKind | null = null
+
+  const flushRun = (): void => {
+    if (currentRun.length === 0) return
+    if (currentRun.length === 1) {
+      const item = currentRun[0]!
+      rows.push({
+        type: 'tool',
+        key: `tool-${item.toolCall.id}`,
+        toolCall: item.toolCall,
+        pending: item.pending
+      })
+    } else {
+      rows.push({
+        type: 'toolGroup',
+        key: `toolGroup-${currentRun[0]!.toolCall.id}`,
+        group: currentKind!,
+        tools: currentRun
+      })
+    }
+    currentRun = []
+    currentKind = null
+  }
+
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i] as ContentBlock
+
+    if (isToolCallBlock(block)) {
+      const kind = toolGroupKind(block.name)
+      if (kind !== null) {
+        // If the kind changed, flush the previous run first
+        if (currentKind !== null && currentKind !== kind) {
+          flushRun()
+        }
+        const result = toolResultsById.get(block.id)
+        const pending = pendingToolCalls.has(block.id) && !result
+        currentRun.push({ toolCall: block, pending })
+        currentKind = kind
+        continue
+      }
+    }
+
+    flushRun()
+
+    if (isTextBlock(block) && block.text.trim()) {
+      rows.push({ type: 'text', key: `text-${i}`, text: block.text })
+    } else if (isThinkingBlock(block) && block.thinking.trim()) {
+      rows.push({ type: 'thinking', key: `thinking-${i}`, text: block.thinking })
+    } else if (isToolCallBlock(block)) {
+      const result = toolResultsById.get(block.id)
+      const pending = pendingToolCalls.has(block.id) && !result
+      rows.push({ type: 'tool', key: `tool-${block.id}`, toolCall: block, pending })
+    }
+  }
+
+  flushRun()
+  return rows
+}
+
 /**
  * Produce a stable React key for a message.
  * Prefer role + timestamp (unique per message) so that prepending/appending
@@ -259,7 +355,6 @@ const ToolCallRowComponent = memo(function ToolCallRowComponent({
   pending
 }: {
   toolCall: ToolCallBlock
-  result?: PiMessage
   pending: boolean
 }) {
   const title = getToolTitle(toolCall.name)
@@ -283,6 +378,96 @@ const ToolCallRowComponent = memo(function ToolCallRowComponent({
   )
 })
 
+function contextGroupSummary(tools: ToolEntry[]): string {
+  let reads = 0
+  let searches = 0
+  let lists = 0
+  for (const { toolCall } of tools) {
+    switch (toolCall.name) {
+      case 'read':
+        reads++
+        break
+      case 'grep':
+      case 'find':
+        searches++
+        break
+      case 'ls':
+        lists++
+        break
+    }
+  }
+  const parts: string[] = []
+  if (reads > 0) parts.push(`${reads} ${reads === 1 ? 'read' : 'reads'}`)
+  if (searches > 0) parts.push(`${searches} ${searches === 1 ? 'search' : 'searches'}`)
+  if (lists > 0) parts.push(`${lists} ${lists === 1 ? 'list' : 'lists'}`)
+  return parts.join(', ')
+}
+
+function editGroupSummary(tools: ToolEntry[]): string {
+  const paths = new Set<string>()
+  for (const { toolCall } of tools) {
+    const args = toolCall.arguments as Record<string, unknown> | undefined
+    const path = typeof args?.path === 'string' ? args.path : undefined
+    if (path) paths.add(path)
+  }
+  const count = paths.size || tools.length
+  return `${count} ${count === 1 ? 'file' : 'files'}`
+}
+
+const GROUP_LABELS: Record<ToolGroupKind, { pending: string; done: string }> = {
+  context: { pending: 'Gathering context…', done: 'Gathered context' },
+  edit: { pending: 'Editing files…', done: 'Edited files' }
+}
+
+const GROUP_SUMMARY: Record<ToolGroupKind, (tools: ToolEntry[]) => string> = {
+  context: contextGroupSummary,
+  edit: editGroupSummary
+}
+
+const ToolCallGroupRowComponent = memo(function ToolCallGroupRowComponent({
+  group,
+  tools
+}: {
+  group: ToolGroupKind
+  tools: ToolEntry[]
+}) {
+  const [open, setOpen] = useState(false)
+  const anyPending = tools.some((t) => t.pending)
+  const labels = GROUP_LABELS[group]
+  const summary = GROUP_SUMMARY[group](tools)
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md px-1 py-0.5 text-[13px] transition-colors hover:text-foreground">
+        <ChevronRightIcon
+          className={cn('size-3.5 shrink-0 transition-transform duration-200', open && 'rotate-90')}
+        />
+        {anyPending ? (
+          <Shimmer as="span" className="shrink-0 font-medium" duration={1.5} spread={1}>
+            {labels.pending}
+          </Shimmer>
+        ) : (
+          <span className="shrink-0 font-medium text-muted-foreground">{labels.done}</span>
+        )}
+        {summary && !anyPending ? (
+          <span className="min-w-0 truncate text-muted-foreground/70">{summary}</span>
+        ) : null}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="ml-5">
+          {tools.map((t) => (
+            <ToolCallRowComponent
+              key={`tool-${t.toolCall.id}`}
+              toolCall={t.toolCall}
+              pending={t.pending}
+            />
+          ))}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+})
+
 const AssistantMessageDisplay = memo(function AssistantMessageDisplay({
   message,
   toolResultsById,
@@ -296,42 +481,42 @@ const AssistantMessageDisplay = memo(function AssistantMessageDisplay({
 }) {
   if (!Array.isArray(message.content)) return null
 
-  const parts: React.JSX.Element[] = []
+  const rows = buildRenderRows(message.content as ContentBlock[], toolResultsById, pendingToolCalls)
 
-  for (let i = 0; i < message.content.length; i++) {
-    const block = message.content[i] as ContentBlock
-    if (isTextBlock(block) && block.text.trim()) {
-      parts.push(
-        <Message from="assistant" key={`text-${i}`}>
-          <MessageContent>
-            <MessageResponse className={ASSISTANT_PROSE}>{block.text}</MessageResponse>
-          </MessageContent>
-        </Message>
-      )
-    } else if (isThinkingBlock(block) && block.thinking.trim()) {
-      parts.push(
-        <ThinkingRowComponent
-          key={`thinking-${i}`}
-          text={block.thinking}
-          streaming={isStreaming ?? false}
-        />
-      )
-    } else if (isToolCallBlock(block)) {
-      const result = toolResultsById.get(block.id)
-      const pending = pendingToolCalls.has(block.id) && !result
-      parts.push(
-        <ToolCallRowComponent
-          key={`tool-${block.id}`}
-          toolCall={block}
-          result={result}
-          pending={pending}
-        />
-      )
-    }
-  }
+  if (rows.length === 0) return null
 
-  if (parts.length === 0) return null
-  return <>{parts}</>
+  return (
+    <>
+      {rows.map((row) => {
+        switch (row.type) {
+          case 'text':
+            return (
+              <Message from="assistant" key={row.key}>
+                <MessageContent>
+                  <MessageResponse className={ASSISTANT_PROSE}>{row.text}</MessageResponse>
+                </MessageContent>
+              </Message>
+            )
+          case 'thinking':
+            return (
+              <ThinkingRowComponent
+                key={row.key}
+                text={row.text}
+                streaming={isStreaming ?? false}
+              />
+            )
+          case 'tool':
+            return (
+              <ToolCallRowComponent key={row.key} toolCall={row.toolCall} pending={row.pending} />
+            )
+          case 'toolGroup':
+            return <ToolCallGroupRowComponent key={row.key} group={row.group} tools={row.tools} />
+          default:
+            return null
+        }
+      })}
+    </>
+  )
 })
 
 const StableMessageList = memo(function StableMessageList({
