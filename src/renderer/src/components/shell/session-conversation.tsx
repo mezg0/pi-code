@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { AlertCircleIcon, ArrowDownIcon, CornerDownRightIcon, SettingsIcon, WaypointsIcon, XIcon } from 'lucide-react'
+import {
+  AlertCircleIcon,
+  ArrowDownIcon,
+  CornerDownRightIcon,
+  SettingsIcon,
+  WaypointsIcon,
+  XIcon
+} from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useStickToBottom } from 'use-stick-to-bottom'
 import type { FileUIPart } from 'ai'
@@ -59,6 +66,7 @@ export function SessionConversation(props: {
   onQuestionDone: () => void
   onPermissionDone: () => void
 }): React.JSX.Element {
+  const { isLoading, isStreaming, onStop } = props
   const { scrollRef, contentRef, isAtBottom, scrollToBottom } = useStickToBottom({
     resize: 'instant',
     initial: 'instant'
@@ -196,10 +204,10 @@ export function SessionConversation(props: {
   useHotkey(
     SHORTCUTS['stop-response'].keys,
     useCallback(() => {
-      if (props.isLoading || props.isStreaming) {
-        void props.onStop()
+      if (isLoading || isStreaming) {
+        void onStop()
       }
-    }, [props.isLoading, props.isStreaming, props.onStop])
+    }, [isLoading, isStreaming, onStop])
   )
 
   useHotkey(
@@ -246,10 +254,7 @@ export function SessionConversation(props: {
                 scrollContainerRef={scrollContainerRef}
               />
               {props.errorMessage && (
-                <SessionError
-                  message={props.errorMessage}
-                  onDismiss={props.onDismissError}
-                />
+                <SessionError message={props.errorMessage} onDismiss={props.onDismissError} />
               )}
             </div>
           </div>
@@ -273,57 +278,59 @@ export function SessionConversation(props: {
 
       {/* Footer stack — observed for height changes to compensate scroll position */}
       <div ref={footerRef} className="shrink-0">
-      {/* Loading indicator — visible while the agent is working */}
-      <div
-        className={cn(
-          'shrink-0 px-3 transition-opacity duration-300 sm:px-5',
-          props.isLoading || props.isStreaming ? 'opacity-100' : 'pointer-events-none opacity-0'
-        )}
-      >
-        <div className="mx-auto w-full max-w-3xl">
-          <div
-            className="h-0.5 w-full overflow-hidden rounded-full bg-muted-foreground/10"
-            style={{
-              maskImage: 'linear-gradient(to right, transparent, black 15%, black 85%, transparent)'
-            }}
-          >
-            <div className="h-full w-1/4 animate-shimmer rounded-full bg-primary/50" />
+        {/* Loading indicator — visible while the agent is working */}
+        <div
+          className={cn(
+            'shrink-0 px-3 transition-opacity duration-300 sm:px-5',
+            props.isLoading || props.isStreaming ? 'opacity-100' : 'pointer-events-none opacity-0'
+          )}
+        >
+          <div className="mx-auto w-full max-w-3xl">
+            <div
+              className="h-0.5 w-full overflow-hidden rounded-full bg-muted-foreground/10"
+              style={{
+                maskImage:
+                  'linear-gradient(to right, transparent, black 15%, black 85%, transparent)'
+              }}
+            >
+              <div className="h-full w-1/4 animate-shimmer rounded-full bg-primary/50" />
+            </div>
+          </div>
+        </div>
+
+        <div className="relative shrink-0">
+          {/* Permission dock — highest priority overlay */}
+          {props.permissionRequest && (
+            <div className="absolute inset-x-0 bottom-0 z-10 px-3 pb-3 sm:px-5">
+              <div className="mx-auto w-full max-w-3xl">
+                <PermissionDock request={props.permissionRequest} onDone={props.onPermissionDone} />
+              </div>
+            </div>
+          )}
+
+          {/* Question dock — overlays the prompt input when the AI asks a question */}
+          {!props.permissionRequest && props.questionRequest && (
+            <div className="absolute inset-x-0 bottom-0 z-10 px-3 pb-3 sm:px-5">
+              <div className="mx-auto w-full max-w-3xl">
+                <QuestionDock request={props.questionRequest} onDone={props.onQuestionDone} />
+              </div>
+            </div>
+          )}
+
+          <div className={cn((props.questionRequest || props.permissionRequest) && 'invisible')}>
+            <SessionPromptInput
+              session={props.session}
+              isLoading={props.isLoading}
+              isStreaming={props.isStreaming}
+              pendingMessages={props.pendingMessages}
+              blocked={!!props.questionRequest || !!props.permissionRequest}
+              onSend={props.onSend}
+              onStop={props.onStop}
+            />
           </div>
         </div>
       </div>
-
-      <div className="relative shrink-0">
-        {/* Permission dock — highest priority overlay */}
-        {props.permissionRequest && (
-          <div className="absolute inset-x-0 bottom-0 z-10 px-3 pb-3 sm:px-5">
-            <div className="mx-auto w-full max-w-3xl">
-              <PermissionDock request={props.permissionRequest} onDone={props.onPermissionDone} />
-            </div>
-          </div>
-        )}
-
-        {/* Question dock — overlays the prompt input when the AI asks a question */}
-        {!props.permissionRequest && props.questionRequest && (
-          <div className="absolute inset-x-0 bottom-0 z-10 px-3 pb-3 sm:px-5">
-            <div className="mx-auto w-full max-w-3xl">
-              <QuestionDock request={props.questionRequest} onDone={props.onQuestionDone} />
-            </div>
-          </div>
-        )}
-
-        <div className={cn((props.questionRequest || props.permissionRequest) && 'invisible')}>
-          <SessionPromptInput
-            session={props.session}
-            isLoading={props.isLoading}
-            isStreaming={props.isStreaming}
-            pendingMessages={props.pendingMessages}
-            blocked={!!props.questionRequest || !!props.permissionRequest}
-            onSend={props.onSend}
-            onStop={props.onStop}
-          />
-        </div>
-      </div>
-      </div>{/* /footer stack */}
+      {/* /footer stack */}
     </div>
   )
 }
@@ -479,7 +486,10 @@ function SessionError({
         {isApiKeyError && (
           <>
             {' '}
-            <Link to="/settings" className="inline-flex items-center gap-1 font-medium underline underline-offset-3 hover:text-foreground">
+            <Link
+              to="/settings"
+              className="inline-flex items-center gap-1 font-medium underline underline-offset-3 hover:text-foreground"
+            >
               <SettingsIcon className="size-3" />
               Open Settings
             </Link>
@@ -487,12 +497,7 @@ function SessionError({
         )}
       </AlertDescription>
       <AlertAction>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-6"
-          onClick={onDismiss}
-        >
+        <Button variant="ghost" size="icon" className="size-6" onClick={onDismiss}>
           <XIcon />
           <span className="sr-only">Dismiss</span>
         </Button>

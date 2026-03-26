@@ -275,12 +275,7 @@ const ToolCallRowComponent = memo(function ToolCallRowComponent({
         <span className="shrink-0 font-medium text-muted-foreground">{title}</span>
       )}
       {subtitle ? (
-        <span
-          className={cn(
-            'min-w-0 truncate text-muted-foreground/70',
-            pending && 'opacity-50'
-          )}
-        >
+        <span className={cn('min-w-0 truncate text-muted-foreground/70', pending && 'opacity-50')}>
           {subtitle}
         </span>
       ) : null}
@@ -356,7 +351,9 @@ const StableMessageList = memo(function StableMessageList({
 }): React.JSX.Element {
   return (
     <>
-      {hasMore && <LoadMoreTrigger onLoadMore={onLoadMore} scrollContainerRef={scrollContainerRef} />}
+      {hasMore && (
+        <LoadMoreTrigger onLoadMore={onLoadMore} scrollContainerRef={scrollContainerRef} />
+      )}
       {displayMessages.map((msg, localIndex) => {
         const globalIndex = globalIndexOffset + localIndex
         const key = stableMessageKey(msg, globalIndex)
@@ -369,13 +366,7 @@ const StableMessageList = memo(function StableMessageList({
           // Check for action card prefix (e.g. commit-pr dispatched from the commit dialog)
           const action = parseActionPrefix(text)
           if (action) {
-            return (
-              <ActionCard
-                key={key}
-                type={action.type}
-                metadata={action.metadata}
-              />
-            )
+            return <ActionCard key={key} type={action.type} metadata={action.metadata} />
           }
 
           return (
@@ -500,8 +491,9 @@ export function PiMessages({
     const prevLength = prevLengthRef.current
     prevLengthRef.current = visibleMessages.length
 
-    // If the list shrank dramatically (session switch / clear), reset
+    // If the list shrank dramatically (session switch / clear), reset.
     if (visibleMessages.length < prevLength - LOAD_MORE_BATCH) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronous reset on shrink keeps pagination anchored correctly across session switches
       setStartIndex(Math.max(0, visibleMessages.length - INITIAL_VISIBLE))
     }
   }, [visibleMessages.length])

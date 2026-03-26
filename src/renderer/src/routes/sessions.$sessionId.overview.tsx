@@ -38,12 +38,18 @@ function SessionOverviewContent({
     questionRequest,
     permissionRequest,
     setLoading,
+    addOptimisticPending,
     clearError,
     clearQuestion,
     clearPermission
   } = useSessionState(initialSession.id, initialSession, initialMessages)
 
   async function handleSend(text: string, images?: SessionImageInput[]): Promise<void> {
+    // If already streaming, show an optimistic queued pill immediately
+    // so the user sees instant feedback before the server roundtrip.
+    if (isStreaming && text.trim()) {
+      addOptimisticPending(text.trim())
+    }
     setLoading()
     await sendSessionMessage(session.id, text, images)
   }
