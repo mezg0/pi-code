@@ -1,4 +1,6 @@
 import { shell, BrowserWindow } from 'electron'
+import { publishServerEvent } from '@pi-code/server/event-bus'
+import { ensureBuiltinOAuthProvidersRegistered } from './extensions/builtin'
 import { loadPiSdk } from './pi-sdk'
 
 import type { AuthStorage } from '@mariozechner/pi-coding-agent'
@@ -128,11 +130,13 @@ export async function oauthLogin(providerId: string): Promise<boolean> {
         void shell.openExternal(info.url)
 
         // Notify renderer about auth status
+        const progressPayload = {
+          providerId,
+          message: info.instructions ?? 'Complete sign-in in your browser...'
+        }
+        publishServerEvent('auth:progress', progressPayload)
         for (const window of BrowserWindow.getAllWindows()) {
-          window.webContents.send('auth:progress', {
-            providerId,
-            message: info.instructions ?? 'Complete sign-in in your browser...'
-          })
+          window.webContents.send('auth:progress', progressPayload)
         }
       },
       onPrompt: async (prompt) => {
@@ -142,6 +146,7 @@ export async function oauthLogin(providerId: string): Promise<boolean> {
         return ''
       },
       onProgress: (message) => {
+        publishServerEvent('auth:progress', { providerId, message })
         for (const window of BrowserWindow.getAllWindows()) {
           window.webContents.send('auth:progress', { providerId, message })
         }

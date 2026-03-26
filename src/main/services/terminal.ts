@@ -1,4 +1,5 @@
 import { BrowserWindow } from 'electron'
+import { publishServerEvent } from '@pi-code/server/event-bus'
 import * as pty from 'node-pty'
 import { platform } from 'os'
 
@@ -39,6 +40,7 @@ export function openTerminal(id: string, cwd: string): string {
       session.buffer = session.buffer.slice(-MAX_BUFFER_CHARS)
     }
 
+    publishServerEvent('terminal:data', { id, data })
     for (const window of BrowserWindow.getAllWindows()) {
       window.webContents.send('terminal:data', { id, data })
     }
@@ -47,6 +49,7 @@ export function openTerminal(id: string, cwd: string): string {
   proc.onExit(() => {
     if (terminals.get(id)?.pty === proc) {
       terminals.delete(id)
+      publishServerEvent('terminal:exit', { id })
       for (const window of BrowserWindow.getAllWindows()) {
         window.webContents.send('terminal:exit', { id })
       }

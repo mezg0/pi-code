@@ -1,11 +1,28 @@
 import { Hono } from 'hono'
+import { cors } from 'hono/cors'
 import { streamSSE } from 'hono/streaming'
+import { createAuthRoutes } from './routes/auth'
+import { createFilesRoutes } from './routes/files'
+import { createGitRoutes } from './routes/git'
 import { createProjectRoutes } from './routes/project'
 import { createSessionRoutes } from './routes/session'
+import { createTerminalRoutes } from './routes/terminal'
 import { subscribeToServerEvents } from './event-bus'
 
 export function createApp(): Hono {
   const app = new Hono()
+
+  app.use(
+    cors({
+      origin: (origin) => {
+        if (!origin) return undefined
+        // Allow localhost/127.0.0.1 on any port (dev + prod)
+        if (origin.startsWith('http://localhost:')) return origin
+        if (origin.startsWith('http://127.0.0.1:')) return origin
+        return undefined
+      }
+    })
+  )
 
   app.onError((error, c) => {
     console.error('[server] request failed:', error)
@@ -58,8 +75,12 @@ export function createApp(): Hono {
     })
   })
 
+  app.route('/auth', createAuthRoutes())
+  app.route('/files', createFilesRoutes())
+  app.route('/git', createGitRoutes())
   app.route('/project', createProjectRoutes())
   app.route('/session', createSessionRoutes())
+  app.route('/terminal', createTerminalRoutes())
 
   return app
 }

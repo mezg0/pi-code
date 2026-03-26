@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { createServer } from '@pi-code/server'
@@ -16,6 +16,16 @@ import { disposeAllSessions } from './services/pi-runner'
 import { disposeAllTerminals } from './services/terminal'
 
 let sidecarServer: Awaited<ReturnType<typeof createServer>> | null = null
+let sidecarServerReady: Promise<void>
+let resolveSidecarReady: () => void
+
+sidecarServerReady = new Promise<void>((resolve) => {
+  resolveSidecarReady = resolve
+})
+
+export function getSidecarServerUrl(): string {
+  return sidecarServer?.url ?? 'http://127.0.0.1:4310'
+}
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -69,6 +79,11 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle('server:url', async () => {
+    await sidecarServerReady
+    return getSidecarServerUrl()
+  })
+
   registerAuthIpc()
   registerEditorIpc()
   registerSessionIpc()
@@ -84,9 +99,11 @@ app.whenReady().then(() => {
     .then((server) => {
       sidecarServer = server
       console.info(`[main] pi-code server listening on ${server.url}`)
+      resolveSidecarReady()
     })
     .catch((error) => {
       console.error('[main] Failed to start pi-code server:', error)
+      resolveSidecarReady()
     })
 
   createWindow()
