@@ -6,7 +6,7 @@ import { loadWorkspace } from '@/lib/workspace'
 export const Route = createFileRoute('/')({
   loader: async () => {
     const { sessions } = await loadWorkspace()
-    const firstSession = sessions[0]
+    const firstSession = sessions.find((session) => !session.archived)
 
     if (firstSession) {
       throw redirect({

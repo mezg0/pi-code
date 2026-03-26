@@ -1,4 +1,4 @@
-import { createFileRoute, notFound } from '@tanstack/react-router'
+import { createFileRoute, notFound, redirect } from '@tanstack/react-router'
 
 import { SessionConversation } from '@/components/shell/session-conversation'
 import { useSessionState } from '@/hooks/use-session-state'
@@ -77,6 +77,9 @@ export const Route = createFileRoute('/sessions/$sessionId/overview')({
     const session = await getSession(params.sessionId)
     if (!session) {
       throw notFound()
+    }
+    if (session.archived) {
+      throw redirect({ to: '/' })
     }
 
     const messages = await getAgentMessages(params.sessionId)

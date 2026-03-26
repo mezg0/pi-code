@@ -16,7 +16,7 @@ export function usePRStatus(sessions: Session[]): PRStatusMap {
   const mountedRef = useRef(true)
 
   // Only care about worktree sessions that have a branch
-  const worktreeSessions = sessions.filter((s) => s.worktreePath && s.branch)
+  const worktreeSessions = sessions.filter((s) => !s.archived && s.worktreePath && s.branch)
 
   useEffect(() => {
     mountedRef.current = true
