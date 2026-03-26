@@ -8,6 +8,7 @@ import { createFilesRoutes } from './routes/files'
 import { createGitRoutes } from './routes/git'
 import { createProjectRoutes } from './routes/project'
 import { createSessionRoutes } from './routes/session'
+import { createRemoteRoutes } from './routes/remote'
 import { createTerminalRoutes } from './routes/terminal'
 import { subscribeToServerEvents } from './event-bus'
 
@@ -93,6 +94,7 @@ export function createApp(options?: { webRoot?: string; devProxy?: string }): Ho
     })
   })
 
+  app.route('/remote', createRemoteRoutes())
   app.route('/auth', createAuthRoutes())
   app.route('/files', createFilesRoutes())
   app.route('/git', createGitRoutes())

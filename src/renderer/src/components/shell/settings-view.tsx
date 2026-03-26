@@ -2,20 +2,29 @@ import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { detectPlatform } from '@tanstack/hotkeys'
 import {
-  ArrowUpIcon,
+  ArchiveIcon,
   ArchiveRestoreIcon,
+  ArrowLeftIcon,
+  ArrowUpIcon,
   CheckCircle2Icon,
+  ChevronRightIcon,
   CommandIcon,
+  CopyIcon,
+  EyeIcon,
+  EyeOffIcon,
   GitBranchIcon,
-  KeyIcon,
+  GlobeIcon,
+  KeyRoundIcon,
+  KeyboardIcon,
   Loader2Icon,
   LogInIcon,
   LogOutIcon,
+  RefreshCwIcon,
   Settings2Icon,
-  ArchiveIcon,
+  ShieldAlertIcon,
   Trash2Icon,
-  XCircleIcon,
-  ZapIcon
+  WifiIcon,
+  XCircleIcon
 } from 'lucide-react'
 
 import {
@@ -62,51 +71,93 @@ import {
 } from '@/lib/auth'
 import type { AuthProviderInfo } from '@pi-code/shared/session'
 
-type SettingsSection = 'api-keys' | 'model-shortcuts' | 'archived-chats'
+type SettingsSection = 'api-keys' | 'model-shortcuts' | 'remote-access' | 'archived-chats'
 
 const NAV_ITEMS: { id: SettingsSection; label: string; icon: React.ElementType }[] = [
-  { id: 'api-keys', label: 'API Keys', icon: KeyIcon },
-  { id: 'model-shortcuts', label: 'Model Shortcuts', icon: ZapIcon },
+  { id: 'api-keys', label: 'API Keys', icon: KeyRoundIcon },
+  { id: 'model-shortcuts', label: 'Model Shortcuts', icon: KeyboardIcon },
+  { id: 'remote-access', label: 'Remote Access', icon: WifiIcon },
   { id: 'archived-chats', label: 'Archived Chats', icon: ArchiveIcon }
 ]
 
 export function SettingsView(): React.JSX.Element {
-  const [activeSection, setActiveSection] = useState<SettingsSection>('api-keys')
+  const [activeSection, setActiveSection] = useState<SettingsSection | null>('api-keys')
+
+  const sectionContent = (
+    <>
+      {activeSection === 'api-keys' && <ApiKeysSection />}
+      {activeSection === 'model-shortcuts' && <ModelShortcutsSection />}
+      {activeSection === 'remote-access' && <RemoteAccessSection />}
+      {activeSection === 'archived-chats' && <ArchivedChatsSection />}
+    </>
+  )
+
+  const navList = (
+    <>
+      <div className="mb-2 flex items-center gap-2 px-2 py-1">
+        <Settings2Icon className="size-4 text-muted-foreground" />
+        <span className="text-sm font-semibold">Settings</span>
+      </div>
+      {NAV_ITEMS.map((item) => {
+        const Icon = item.icon
+        return (
+          <button
+            key={item.id}
+            onClick={() => setActiveSection(item.id)}
+            className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors ${
+              activeSection === item.id
+                ? 'bg-accent text-accent-foreground font-medium'
+                : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+            }`}
+          >
+            <Icon className="size-3.5 shrink-0" />
+            {item.label}
+            <ChevronRightIcon className="ml-auto size-3.5 text-muted-foreground/50 md:hidden" />
+          </button>
+        )
+      })}
+    </>
+  )
 
   return (
-    <div className="flex h-full overflow-hidden">
-      {/* Left nav */}
-      <aside className="flex w-52 shrink-0 flex-col gap-1 border-r border-border p-3">
-        <div className="mb-2 flex items-center gap-2 px-2 py-1">
-          <Settings2Icon className="size-4 text-muted-foreground" />
-          <span className="text-sm font-semibold">Settings</span>
+    <>
+      {/* Desktop: side-by-side */}
+      <div className="hidden h-full overflow-hidden md:flex">
+        <aside className="flex w-52 shrink-0 flex-col gap-1 border-r border-border p-3">
+          {navList}
+        </aside>
+        <div className="min-w-0 flex-1 overflow-hidden">
+          {sectionContent}
         </div>
-        {NAV_ITEMS.map((item) => {
-          const Icon = item.icon
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveSection(item.id)}
-              className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors ${
-                activeSection === item.id
-                  ? 'bg-accent text-accent-foreground font-medium'
-                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-              }`}
-            >
-              <Icon className="size-3.5 shrink-0" />
-              {item.label}
-            </button>
-          )
-        })}
-      </aside>
-
-      {/* Right content */}
-      <div className="min-w-0 flex-1 overflow-hidden">
-        {activeSection === 'api-keys' && <ApiKeysSection />}
-        {activeSection === 'model-shortcuts' && <ModelShortcutsSection />}
-        {activeSection === 'archived-chats' && <ArchivedChatsSection />}
       </div>
-    </div>
+
+      {/* Mobile: stacked nav → content */}
+      <div className="flex h-full flex-col overflow-hidden md:hidden">
+        {activeSection === null ? (
+          <div className="flex flex-col gap-1 p-3">
+            {navList}
+          </div>
+        ) : (
+          <>
+            <div className="flex h-11 shrink-0 items-center gap-1.5 border-b border-border px-2">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setActiveSection(null)}
+              >
+                <ArrowLeftIcon />
+              </Button>
+              <span className="text-sm font-semibold">
+                {NAV_ITEMS.find((i) => i.id === activeSection)?.label}
+              </span>
+            </div>
+            <div className="min-w-0 flex-1 overflow-hidden">
+              {sectionContent}
+            </div>
+          </>
+        )}
+      </div>
+    </>
   )
 }
 
@@ -146,11 +197,11 @@ function ApiKeysSection(): React.JSX.Element {
 
   return (
     <ScrollArea className="h-full">
-      <div className="mx-auto max-w-2xl space-y-8 p-8">
+      <div className="mx-auto max-w-2xl space-y-8 p-6 md:p-8">
         <div className="space-y-1">
           <h2 className="text-base font-semibold">API Keys</h2>
           <p className="text-sm text-muted-foreground">
-            Manage API keys and authentication for AI providers.
+            Manage authentication for AI providers.
           </p>
         </div>
 
@@ -336,11 +387,11 @@ function ModelShortcutsSection(): React.JSX.Element {
 
   return (
     <ScrollArea className="h-full">
-      <div className="mx-auto max-w-2xl space-y-6 p-8">
+      <div className="mx-auto max-w-2xl space-y-8 p-6 md:p-8">
         <div className="space-y-1">
           <h2 className="text-base font-semibold">Model Shortcuts</h2>
           <p className="text-sm text-muted-foreground">
-            Assign keyboard shortcuts to quickly switch models and thinking levels.
+            Switch models and thinking levels with keyboard shortcuts.
           </p>
         </div>
 
@@ -480,7 +531,7 @@ function ModelShortcutsSection(): React.JSX.Element {
         {/* Empty state */}
         {assignedSlots.length === 0 && !loadingModels && (
           <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border py-10 text-center">
-            <ZapIcon className="size-7 text-muted-foreground/30" />
+            <KeyboardIcon className="size-7 text-muted-foreground/30" />
             <div className="space-y-1">
               <p className="text-sm font-medium text-muted-foreground">No shortcuts configured</p>
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
@@ -534,6 +585,296 @@ function ModelShortcutsSection(): React.JSX.Element {
   )
 }
 
+// ─── Remote Access Section ───────────────────────────────────────────────────
+
+function RemoteAccessSection(): React.JSX.Element {
+  const [status, setStatus] = useState<{
+    enabled: boolean
+    port: number
+    password: string | null
+    urls: string[]
+  } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [toggling, setToggling] = useState(false)
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [portInput, setPortInput] = useState('4311')
+  const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState<string | null>(null)
+
+  const loadStatus = useCallback(async () => {
+    try {
+      const { getRemoteStatus } = await import('@/lib/remote-access')
+      const s = await getRemoteStatus()
+      setStatus(s)
+      setPortInput(String(s.port))
+      if (s.password) setPassword(s.password)
+    } catch {
+      setError('Failed to load remote access status')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadStatus()
+  }, [loadStatus])
+
+  async function handleEnable(): Promise<void> {
+    setToggling(true)
+    setError(null)
+    try {
+      const { enableRemoteAccess } = await import('@/lib/remote-access')
+      const port = parseInt(portInput, 10)
+      if (isNaN(port) || port < 1024 || port > 65535) {
+        setError('Port must be between 1024 and 65535')
+        return
+      }
+      const s = await enableRemoteAccess({
+        port,
+        password: password.trim() || null
+      })
+      setStatus(s)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to enable remote access')
+    } finally {
+      setToggling(false)
+    }
+  }
+
+  async function handleDisable(): Promise<void> {
+    setToggling(true)
+    setError(null)
+    try {
+      const { disableRemoteAccess } = await import('@/lib/remote-access')
+      await disableRemoteAccess()
+      setStatus((prev) => prev ? { ...prev, enabled: false, urls: [] } : prev)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to disable')
+    } finally {
+      setToggling(false)
+    }
+  }
+
+  async function handleGeneratePassword(): Promise<void> {
+    try {
+      const { generateRemotePassword } = await import('@/lib/remote-access')
+      const { password: pw } = await generateRemotePassword()
+      setPassword(pw)
+      setShowPassword(true)
+    } catch {
+      setError('Failed to generate password')
+    }
+  }
+
+  function copyToClipboard(text: string, label: string): void {
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopied(label)
+      setTimeout(() => setCopied(null), 2000)
+    })
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  const isEnabled = status?.enabled === true
+
+  return (
+    <ScrollArea className="h-full">
+      <div className="mx-auto max-w-2xl space-y-8 p-6 md:p-8">
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold">Remote Access</h2>
+          <p className="text-sm text-muted-foreground">
+            Access pi-code from your phone or other devices on your network.
+          </p>
+        </div>
+
+        {/* Status */}
+        <div className="rounded-lg border border-border bg-card px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`flex size-8 items-center justify-center rounded-md ${isEnabled ? 'bg-emerald-500/10' : 'bg-muted'}`}>
+                {isEnabled ? (
+                  <GlobeIcon className="size-4 text-emerald-500" />
+                ) : (
+                  <WifiIcon className="size-4 text-muted-foreground" />
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-medium">
+                  {isEnabled ? 'Remote access enabled' : 'Local only'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {isEnabled
+                    ? status?.password
+                      ? 'Password protected'
+                      : 'No password — anyone on your network can access'
+                    : 'Only accessible on this device'}
+                </p>
+              </div>
+            </div>
+            {isEnabled ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={toggling}
+                onClick={() => void handleDisable()}
+              >
+                {toggling ? <Loader2Icon className="size-3.5 animate-spin" /> : 'Disable'}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Warning for no password */}
+        {isEnabled && !status?.password && (
+          <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+            <ShieldAlertIcon className="size-4 shrink-0 text-amber-500 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-amber-500">No password set</p>
+              <p className="text-xs text-muted-foreground">
+                Anyone on your network can access and control sessions, run commands, and read files.
+                Consider setting a password.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* URLs when enabled */}
+        {isEnabled && status?.urls && status.urls.length > 0 && (
+          <section className="space-y-3">
+            <h3 className="text-sm font-medium">Access URLs</h3>
+            <div className="space-y-2">
+              {status.urls.map((url) => (
+                <div
+                  key={url}
+                  className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-2.5"
+                >
+                  <code className="text-sm font-mono">{url}</code>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => copyToClipboard(url, url)}
+                  >
+                    {copied === url ? (
+                      <CheckCircle2Icon className="size-3.5 text-emerald-500" />
+                    ) : (
+                      <CopyIcon className="size-3.5" />
+                    )}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Enable form */}
+        {!isEnabled && (
+          <section className="space-y-4">
+            <Separator />
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium">Enable remote access</h3>
+              <p className="text-xs text-muted-foreground">
+                Start a network-accessible server so you can use pi-code from your phone or another device.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium" htmlFor="remote-port">Port</label>
+                <Input
+                  id="remote-port"
+                  type="number"
+                  value={portInput}
+                  onChange={(e) => setPortInput(e.target.value)}
+                  className="w-32"
+                  min={1024}
+                  max={65535}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium" htmlFor="remote-password">
+                    Password
+                  </label>
+                  <span className="text-xs text-muted-foreground">(recommended)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      id="remote-password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Set a password…"
+                      className="pr-9"
+                    />
+                    {password && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
+                        onClick={() => setShowPassword((v) => !v)}
+                        type="button"
+                      >
+                        {showPassword ? <EyeOffIcon className="size-3.5" /> : <EyeIcon className="size-3.5" />}
+                      </Button>
+                    )}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleGeneratePassword()}
+                  >
+                    <RefreshCwIcon data-icon="inline-start" />
+                    Generate
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <Button
+              onClick={() => void handleEnable()}
+              disabled={toggling}
+              className="w-full sm:w-auto"
+            >
+              {toggling ? (
+                <Loader2Icon className="size-3.5 animate-spin" data-icon="inline-start" />
+              ) : (
+                <GlobeIcon data-icon="inline-start" />
+              )}
+              Enable remote access
+            </Button>
+          </section>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+            <XCircleIcon className="size-4 shrink-0" />
+            {error}
+          </div>
+        )}
+
+        {/* Info */}
+        <div className="rounded-lg border border-dashed border-border px-4 py-3 text-xs text-muted-foreground">
+          <p>
+            Designed for local network use. For access over the internet, use{' '}
+            <a href="https://tailscale.com" target="_blank" rel="noopener" className="underline underline-offset-2">Tailscale</a>{' '}
+            or a secure tunnel.
+          </p>
+        </div>
+      </div>
+    </ScrollArea>
+  )
+}
+
 // ─── Archived Chats Section ──────────────────────────────────────────────────
 
 function ArchivedChatsSection(): React.JSX.Element {
@@ -582,7 +923,7 @@ function ArchivedChatsSection(): React.JSX.Element {
 
   return (
     <ScrollArea className="h-full">
-      <div className="mx-auto max-w-2xl space-y-6 p-8">
+      <div className="mx-auto max-w-2xl space-y-8 p-6 md:p-8">
         <div className="space-y-1">
           <h2 className="text-base font-semibold">Archived Chats</h2>
           <p className="text-sm text-muted-foreground">
@@ -797,7 +1138,7 @@ function ApiKeyProviderRow({
     <div className="space-y-2 rounded-lg border border-border bg-card px-4 py-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <KeyIcon className="size-3.5 text-muted-foreground" />
+          <KeyRoundIcon className="size-3.5 text-muted-foreground" />
           <span className="text-sm font-medium">{provider.name}</span>
           {hasStoredKey && (
             <Badge variant="secondary" className="gap-1">

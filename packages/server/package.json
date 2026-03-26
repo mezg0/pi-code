@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./event-bus": "./src/event-bus.ts"
+    "./event-bus": "./src/event-bus.ts",
+    "./remote": "./src/routes/remote.ts"
   }
 }

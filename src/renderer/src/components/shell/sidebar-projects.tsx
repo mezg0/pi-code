@@ -60,7 +60,8 @@ import {
   SidebarMenu,
   SidebarMenuAction,
   SidebarMenuButton,
-  SidebarMenuItem
+  SidebarMenuItem,
+  useSidebar
 } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { GitBranch, GitPRStatus, Project, Session, SessionStatus } from '@/lib/sessions'
@@ -97,6 +98,8 @@ export function SidebarProjects({
   onToggleArchiveSession: (session: Session, archived: boolean) => Promise<void>
 }): React.JSX.Element {
   const [projectToRemove, setProjectToRemove] = useState<Project | null>(null)
+  const { isMobile, setOpenMobile } = useSidebar()
+  const closeMobileSidebar = isMobile ? () => setOpenMobile(false) : undefined
 
   return (
     <Sidebar>
@@ -153,6 +156,7 @@ export function SidebarProjects({
                             hasPermission={permissionSessionIds.has(session.id)}
                             prStatus={prStatusMap.get(session.id)}
                             onToggleArchiveSession={onToggleArchiveSession}
+                            onNavigate={closeMobileSidebar}
                           />
                         ))}
                       </SidebarMenu>
@@ -185,7 +189,7 @@ export function SidebarProjects({
         <Tooltip>
           <TooltipTrigger asChild>
             <Button asChild variant="ghost" size="sm" className="w-full justify-start gap-2">
-              <Link to="/settings">
+              <Link to="/settings" onClick={closeMobileSidebar}>
                 <Settings2Icon data-icon="inline-start" />
                 Settings
               </Link>
@@ -478,7 +482,8 @@ function SessionMenuEntry({
   hasQuestion,
   hasPermission,
   prStatus,
-  onToggleArchiveSession
+  onToggleArchiveSession,
+  onNavigate
 }: {
   session: Session
   isActive: boolean
@@ -487,6 +492,7 @@ function SessionMenuEntry({
   hasPermission: boolean
   prStatus?: GitPRStatus
   onToggleArchiveSession: (session: Session, archived: boolean) => Promise<void>
+  onNavigate?: () => void
 }): React.JSX.Element {
   const [isArchiving, setIsArchiving] = useState(false)
   const isBusy = BUSY_STATUSES.has(session.status)
@@ -514,6 +520,7 @@ function SessionMenuEntry({
           params={{ sessionId: session.id }}
           tabIndex={isArchiving ? -1 : undefined}
           aria-disabled={isArchiving}
+          onClick={onNavigate}
         >
           {hasPermission ? (
             <ShieldAlertIcon className="!size-3 text-orange-500" />
