@@ -5,7 +5,12 @@ import type {
   SessionImageInput,
   UpdateSessionInput
 } from '@pi-code/shared/session'
-import { createSession, getSession, listSessions, updateSession } from '../../../../src/main/services/session-manager'
+import {
+  createSession,
+  getSession,
+  listSessions,
+  updateSession
+} from '../../../../src/main/services/session-manager'
 import {
   abortSession,
   disposeSession,
@@ -13,14 +18,20 @@ import {
   getAgentState,
   getAvailableModels,
   getPendingQuestion,
+  getPermissionMode,
   getPlanMode,
   sendSessionMessage,
   setModel,
+  setPermissionMode,
   setPlanMode,
   setThinkingLevel,
   steerSession
 } from '../../../../src/main/services/pi-runner'
 import { rejectQuestion, replyToQuestion } from '../../../../src/main/services/tools/question'
+import {
+  getPendingPermission,
+  replyToPermission
+} from '../../../../src/main/services/tools/permission'
 
 export function createSessionRoutes(): Hono {
   const app = new Hono()
@@ -158,6 +169,39 @@ export function createSessionRoutes(): Hono {
 
   app.post('/question/:requestId/reject', (c) => {
     return c.json(rejectQuestion(c.req.param('requestId')))
+  })
+
+  app.get('/:id/permission', (c) => {
+    return c.json(getPendingPermission(c.req.param('id')))
+  })
+
+  app.post('/permission/:requestId/reply', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as {
+      response?: 'once' | 'always' | 'reject'
+      message?: string
+    } | null
+
+    if (!body?.response || !['once', 'always', 'reject'].includes(body.response)) {
+      return c.json({ error: 'response must be one of: once, always, reject' }, 400)
+    }
+
+    return c.json(replyToPermission(c.req.param('requestId'), body.response, body.message))
+  })
+
+  app.get('/:id/permission-mode', async (c) => {
+    return c.json(await getPermissionMode(c.req.param('id')))
+  })
+
+  app.put('/:id/permission-mode', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as {
+      mode?: 'ask' | 'auto' | 'strict'
+    } | null
+
+    if (!body?.mode || !['ask', 'auto', 'strict'].includes(body.mode)) {
+      return c.json({ error: 'mode must be one of: ask, auto, strict' }, 400)
+    }
+
+    return c.json(await setPermissionMode(c.req.param('id'), body.mode))
   })
 
   return app

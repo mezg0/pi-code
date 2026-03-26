@@ -1,9 +1,5 @@
 import { BrowserWindow } from 'electron'
-import type {
-  PermissionMode,
-  PermissionRequest,
-  PermissionResponse
-} from '../../../shared/session'
+import type { PermissionMode, PermissionRequest, PermissionResponse } from '@pi-code/shared/session'
 
 // ── Pending permission state ────────────────────────────────────────
 
@@ -17,7 +13,7 @@ type PendingPermission = {
 const pending = new Map<string, PendingPermission>()
 let nextId = 1
 
-// Session-scoped "always" approvals: sessionId → Set of "toolName:pattern"
+// Session-scoped "always" approvals: sessionId → Set of "permission:pattern"
 const alwaysApproved = new Map<string, Set<string>>()
 
 function generateRequestId(): string {
@@ -35,13 +31,11 @@ function emitToRenderers(channel: string, payload: unknown): void {
 /**
  * Derive a pattern from a tool call for "always" approval matching.
  * For bash: first 1-2 tokens of the command (e.g., "git *", "npm run *").
- * For edit/write: the file path.
+ * For path-based tools: the path.
+ * For grep: the path when present, otherwise the pattern.
  * For others: wildcard.
  */
-export function derivePattern(
-  toolName: string,
-  input: Record<string, unknown>
-): string {
+export function derivePattern(toolName: string, input: Record<string, unknown>): string {
   if (toolName === 'bash') {
     const command = input.command
     if (typeof command !== 'string') return '*'
@@ -49,8 +43,22 @@ export function derivePattern(
     if (tokens.length === 0) return '*'
     // Use first token for simple commands, first 2 for compound (git, npm, etc.)
     const COMPOUND_COMMANDS = new Set([
-      'git', 'npm', 'yarn', 'pnpm', 'bun', 'cargo', 'docker', 'kubectl',
-      'pip', 'brew', 'apt', 'apt-get', 'make', 'go', 'python', 'node'
+      'git',
+      'npm',
+      'yarn',
+      'pnpm',
+      'bun',
+      'cargo',
+      'docker',
+      'kubectl',
+      'pip',
+      'brew',
+      'apt',
+      'apt-get',
+      'make',
+      'go',
+      'python',
+      'node'
     ])
     if (COMPOUND_COMMANDS.has(tokens[0]) && tokens.length > 1) {
       return `${tokens[0]} ${tokens[1]} *`
@@ -58,15 +66,23 @@ export function derivePattern(
     return `${tokens[0]} *`
   }
 
-  if (toolName === 'edit' || toolName === 'write') {
+  if (
+    toolName === 'edit' ||
+    toolName === 'write' ||
+    toolName === 'read' ||
+    toolName === 'find' ||
+    toolName === 'ls'
+  ) {
     const path = input.path ?? input.filePath ?? input.file_path
     if (typeof path === 'string') return path
     return '*'
   }
 
-  if (toolName === 'read') {
+  if (toolName === 'grep') {
     const path = input.path ?? input.filePath ?? input.file_path
     if (typeof path === 'string') return path
+    const pattern = input.pattern ?? input.regex
+    if (typeof pattern === 'string') return pattern
     return '*'
   }
 
@@ -77,10 +93,7 @@ export function derivePattern(
  * Derive patterns for the "always" approval option shown in the UI.
  * Returns a list of human-readable patterns the user would approve.
  */
-export function deriveAlwaysPatterns(
-  toolName: string,
-  input: Record<string, unknown>
-): string[] {
+export function deriveAlwaysPatterns(toolName: string, input: Record<string, unknown>): string[] {
   const pattern = derivePattern(toolName, input)
   return [pattern]
 }
@@ -88,10 +101,7 @@ export function deriveAlwaysPatterns(
 /**
  * Create a human-readable description of a tool call.
  */
-export function describeToolCall(
-  toolName: string,
-  input: Record<string, unknown>
-): string {
+export function describeToolCall(toolName: string, input: Record<string, unknown>): string {
   if (toolName === 'bash') {
     const command = input.command
     if (typeof command === 'string') return `Run command: ${command}`
@@ -139,28 +149,24 @@ export function describeToolCall(
 
 // ── Always-approved checks ──────────────────────────────────────────
 
-function alwaysKey(toolName: string, pattern: string): string {
-  return `${toolName}:${pattern}`
+function alwaysKey(permission: string, pattern: string): string {
+  return `${permission}:${pattern}`
 }
 
-export function isAlwaysApproved(
-  sessionId: string,
-  toolName: string,
-  pattern: string
-): boolean {
+export function isAlwaysApproved(sessionId: string, permission: string, pattern: string): boolean {
   const approved = alwaysApproved.get(sessionId)
   if (!approved) return false
 
   // Check exact match
-  if (approved.has(alwaysKey(toolName, pattern))) return true
+  if (approved.has(alwaysKey(permission, pattern))) return true
 
-  // Check wildcard match: if "toolName:*" is approved, everything matches
-  if (approved.has(alwaysKey(toolName, '*'))) return true
+  // Check wildcard match: if "permission:*" is approved, everything matches
+  if (approved.has(alwaysKey(permission, '*'))) return true
 
   // Check prefix match for commands like "git *" matching "git status *"
   for (const key of approved) {
-    if (!key.startsWith(`${toolName}:`)) continue
-    const approvedPattern = key.slice(toolName.length + 1)
+    if (!key.startsWith(`${permission}:`)) continue
+    const approvedPattern = key.slice(permission.length + 1)
     if (approvedPattern.endsWith(' *')) {
       const prefix = approvedPattern.slice(0, -2)
       if (pattern.startsWith(prefix)) return true
@@ -170,22 +176,35 @@ export function isAlwaysApproved(
   return false
 }
 
-function addAlwaysApproval(
+export function arePatternsAlwaysApproved(
   sessionId: string,
-  toolName: string,
+  permission: string,
   patterns: string[]
-): void {
+): boolean {
+  if (patterns.length === 0) return false
+  return patterns.every((pattern) => isAlwaysApproved(sessionId, permission, pattern))
+}
+
+function addAlwaysApproval(sessionId: string, permission: string, patterns: string[]): void {
   let approved = alwaysApproved.get(sessionId)
   if (!approved) {
     approved = new Set()
     alwaysApproved.set(sessionId, approved)
   }
   for (const pattern of patterns) {
-    approved.add(alwaysKey(toolName, pattern))
+    approved.add(alwaysKey(permission, pattern))
   }
 }
 
 // ── Public API ──────────────────────────────────────────────────────
+
+type AskPermissionOptions = {
+  permission?: string
+  description?: string
+  patterns?: string[]
+  always?: string[]
+  metadata?: Record<string, unknown>
+}
 
 /**
  * Ask the user for permission to execute a tool call.
@@ -195,17 +214,24 @@ export function askPermission(
   sessionId: string,
   toolName: string,
   toolCallId: string,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
+  options: AskPermissionOptions = {}
 ): Promise<void> {
   const requestId = generateRequestId()
+  const permission = options.permission ?? toolName
+  const patterns = options.patterns ?? [derivePattern(toolName, input)]
+  const always = options.always ?? deriveAlwaysPatterns(toolName, input)
   const request: PermissionRequest = {
     id: requestId,
     sessionId,
     toolName,
     toolCallId,
-    description: describeToolCall(toolName, input),
+    permission,
+    description: options.description ?? describeToolCall(toolName, input),
     input,
-    patterns: deriveAlwaysPatterns(toolName, input)
+    patterns,
+    always,
+    metadata: options.metadata ?? {}
   }
 
   return new Promise<void>((resolve, reject) => {
@@ -237,18 +263,19 @@ export function replyToPermission(
       entry.resolve()
       break
     case 'always':
-      addAlwaysApproval(
-        entry.sessionId,
-        entry.request.toolName,
-        entry.request.patterns
-      )
+      addAlwaysApproval(entry.sessionId, entry.request.permission, entry.request.always)
       entry.resolve()
 
       // Auto-resolve other pending permissions for this session that now match
       for (const [id, other] of pending) {
         if (other.sessionId !== entry.sessionId) continue
-        const pattern = derivePattern(other.request.toolName, other.request.input)
-        if (isAlwaysApproved(entry.sessionId, other.request.toolName, pattern)) {
+        if (
+          arePatternsAlwaysApproved(
+            entry.sessionId,
+            other.request.permission,
+            other.request.patterns
+          )
+        ) {
           pending.delete(id)
           emitToRenderers('sessions:permission', {
             sessionId: other.sessionId,
@@ -261,9 +288,7 @@ export function replyToPermission(
     case 'reject':
       entry.reject(
         message
-          ? new Error(
-              `The user denied permission with feedback: ${message}`
-            )
+          ? new Error(`The user denied permission with feedback: ${message}`)
           : new Error(
               'The user denied permission for this tool call. You may try again with different parameters.'
             )
@@ -277,9 +302,7 @@ export function replyToPermission(
 /**
  * Get the pending permission request for a given session, if any.
  */
-export function getPendingPermission(
-  sessionId: string
-): PermissionRequest | null {
+export function getPendingPermission(sessionId: string): PermissionRequest | null {
   for (const [, entry] of pending) {
     if (entry.sessionId === sessionId) {
       return entry.request
@@ -338,9 +361,7 @@ export function registerPermissionModeController(
   controllersBySessionFile.set(sessionFile, controller)
 }
 
-export function unregisterPermissionModeController(
-  sessionFile: string
-): void {
+export function unregisterPermissionModeController(sessionFile: string): void {
   controllersBySessionFile.delete(sessionFile)
 }
 
@@ -355,9 +376,7 @@ export function getPermissionModeController(
 
 let currentSessionId: string | null = null
 
-export function setCurrentPermissionSessionId(
-  sessionId: string | null
-): void {
+export function setCurrentPermissionSessionId(sessionId: string | null): void {
   currentSessionId = sessionId
 }
 

@@ -129,9 +129,12 @@ export type PermissionRequest = {
   sessionId: string
   toolName: string
   toolCallId: string
+  permission: string
   description: string
   input: Record<string, unknown>
   patterns: string[]
+  always: string[]
+  metadata: Record<string, unknown>
 }
 
 export type PermissionResponse = 'once' | 'always' | 'reject'
