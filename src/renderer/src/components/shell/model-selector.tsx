@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { BrainIcon, CheckIcon, ChevronDownIcon } from 'lucide-react'
 
 import {
@@ -19,17 +19,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
-import { MODEL_SHORTCUT_APPLIED_EVENT } from '@/hooks/use-model-shortcuts'
 import { loadModelShortcuts } from '@/lib/model-shortcuts'
-import { cn } from '@/lib/utils'
 import {
-  getAgentState,
-  getAvailableModels,
-  setSessionModel,
-  setSessionThinking,
-  type ModelInfo,
-  type RpcState
-} from '@/lib/sessions'
+  useSessionAvailableModels,
+  useSessionRuntimeMutations,
+  useSessionRuntimeState
+} from '@/lib/session-runtime-query'
+import { cn } from '@/lib/utils'
+import type { ModelInfo } from '@/lib/sessions'
 import { getModelShortcutDisplay } from '@/lib/shortcuts'
 
 function formatProviderLabel(provider: string): string {
@@ -60,54 +57,33 @@ function FooterButton({
 }
 
 export function ModelSelector({ sessionId }: { sessionId: string }): React.JSX.Element {
-  const [state, setState] = useState<RpcState>(null)
-  const [models, setModels] = useState<ModelInfo[]>([])
   const [open, setOpen] = useState(false)
+  const runtimeStateQuery = useSessionRuntimeState(sessionId)
+  const availableModelsQuery = useSessionAvailableModels(sessionId)
+  const { setModel, setThinking } = useSessionRuntimeMutations(sessionId)
 
-  const refreshState = useCallback(() => {
-    void Promise.all([getAgentState(sessionId), getAvailableModels(sessionId)]).then(
-      ([rpcState, availableModels]) => {
-        setState(rpcState)
-        setModels(availableModels)
-      }
-    )
-  }, [sessionId])
-
-  useEffect(() => {
-    refreshState()
-  }, [refreshState])
-
-  // Refresh when a model shortcut changes the model externally
-  useEffect(() => {
-    const handler = (): void => refreshState()
-    window.addEventListener(MODEL_SHORTCUT_APPLIED_EVENT, handler)
-    return () => window.removeEventListener(MODEL_SHORTCUT_APPLIED_EVENT, handler)
-  }, [refreshState])
-
-  const handleModelSelect = useCallback(
-    async (model: ModelInfo): Promise<void> => {
-      setOpen(false)
-      await setSessionModel(sessionId, model.provider, model.id)
-      const nextState = await getAgentState(sessionId)
-      setState(nextState)
-    },
-    [sessionId]
-  )
-
-  async function handleThinkingChange(level: string): Promise<void> {
-    await setSessionThinking(sessionId, level)
-    const nextState = await getAgentState(sessionId)
-    setState(nextState)
-  }
-
+  const state = runtimeStateQuery.data ?? null
+  const models = availableModelsQuery.data ?? []
   const currentModelId = state?.model?.id ?? '…'
   const currentProvider = state?.model?.provider ?? ''
   const currentThinking = state?.thinkingLevel ?? 'off'
   const thinkingLevels = state?.availableThinkingLevels ?? []
   const supportsReasoning = thinkingLevels.length > 1
   const providers = [...new Set(models.map((model) => model.provider))]
+  const pending = setModel.isPending || setThinking.isPending
 
-  // Build a reverse lookup: "provider:modelId" → shortcut display string
+  async function handleModelSelect(model: ModelInfo): Promise<void> {
+    setOpen(false)
+    const success = await setModel.mutateAsync({ provider: model.provider, modelId: model.id })
+    if (!success) {
+      setOpen(true)
+    }
+  }
+
+  async function handleThinkingChange(level: string): Promise<void> {
+    await setThinking.mutateAsync(level)
+  }
+
   const shortcutHints = useMemo(() => {
     if (!open) return {}
     const map: Record<string, string> = {}
@@ -124,7 +100,7 @@ export function ModelSelector({ sessionId }: { sessionId: string }): React.JSX.E
     <>
       <ModelSelectorRoot open={open} onOpenChange={setOpen}>
         <ModelSelectorTrigger asChild>
-          <FooterButton className="uppercase">
+          <FooterButton className="uppercase" disabled={pending}>
             {currentModelId}
             <ChevronDownIcon className="size-3 opacity-50" />
           </FooterButton>
@@ -132,7 +108,9 @@ export function ModelSelector({ sessionId }: { sessionId: string }): React.JSX.E
         <ModelSelectorContent title="Select model">
           <ModelSelectorInput placeholder="Search models…" />
           <ModelSelectorList>
-            <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
+            <ModelSelectorEmpty>
+              {availableModelsQuery.isPending ? 'Loading models…' : 'No models found.'}
+            </ModelSelectorEmpty>
             {providers.map((provider) => (
               <ModelSelectorGroup heading={formatProviderLabel(provider)} key={provider}>
                 {models
@@ -142,6 +120,7 @@ export function ModelSelector({ sessionId }: { sessionId: string }): React.JSX.E
                       key={`${model.provider}:${model.id}`}
                       value={`${model.provider} ${model.id}`}
                       onSelect={() => void handleModelSelect(model)}
+                      disabled={pending}
                     >
                       <ModelSelectorName>{model.id}</ModelSelectorName>
                       {model.reasoning ? (
@@ -168,7 +147,7 @@ export function ModelSelector({ sessionId }: { sessionId: string }): React.JSX.E
       {supportsReasoning ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <FooterButton className="capitalize">
+            <FooterButton className="capitalize" disabled={pending}>
               <BrainIcon className="size-3" />
               {currentThinking}
               <ChevronDownIcon className="size-3 opacity-50" />
@@ -180,6 +159,7 @@ export function ModelSelector({ sessionId }: { sessionId: string }): React.JSX.E
                 key={level}
                 onClick={() => void handleThinkingChange(level)}
                 className="capitalize"
+                disabled={pending}
               >
                 <span className={level === currentThinking ? 'font-medium' : ''}>{level}</span>
                 {level === currentThinking ? <CheckIcon className="ml-auto size-3.5" /> : null}

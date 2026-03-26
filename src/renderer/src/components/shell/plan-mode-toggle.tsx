@@ -1,63 +1,26 @@
-import { useEffect, useState } from 'react'
 import { ListChecksIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useHotkey } from '@tanstack/react-hotkeys'
-import { getSessionPlanMode, onPlanModeEvent, setSessionPlanMode } from '@/lib/sessions'
+import { useSessionPlanMode, useSessionRuntimeMutations } from '@/lib/session-runtime-query'
 import { getShortcutDisplay, SHORTCUTS } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 
 export function PlanModeToggle({ sessionId }: { sessionId: string }): React.JSX.Element {
-  const [enabled, setEnabled] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [pending, setPending] = useState(false)
+  const planModeQuery = useSessionPlanMode(sessionId)
+  const { setPlanMode } = useSessionRuntimeMutations(sessionId)
 
-  useEffect(() => {
-    let disposed = false
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting loading state for new sessionId is intentional
-    setLoading(true)
-
-    void getSessionPlanMode(sessionId)
-      .then((value) => {
-        if (disposed) return
-        setEnabled(value)
-      })
-      .finally(() => {
-        if (disposed) return
-        setLoading(false)
-      })
-
-    const unsubscribe = onPlanModeEvent((payload) => {
-      if (payload.sessionId !== sessionId) return
-      setEnabled(payload.enabled)
-      setLoading(false)
-      setPending(false)
-    })
-
-    return () => {
-      disposed = true
-      unsubscribe()
-    }
-  }, [sessionId])
+  const enabled = planModeQuery.data ?? false
+  const loading = planModeQuery.isPending
+  const pending = setPlanMode.isPending
 
   async function handleToggle(): Promise<void> {
     if (loading || pending) return
-
-    const next = !enabled
-    setPending(true)
-    setEnabled(next)
-
-    const success = await setSessionPlanMode(sessionId, next)
-    if (!success) {
-      setEnabled(!next)
-    }
-
-    setPending(false)
+    await setPlanMode.mutateAsync(!enabled)
   }
 
-  // Keyboard shortcut to toggle plan mode
   useHotkey(SHORTCUTS['toggle-plan-mode'].keys, () => void handleToggle())
 
   const shortcutHint = getShortcutDisplay('toggle-plan-mode')
@@ -84,7 +47,8 @@ export function PlanModeToggle({ sessionId }: { sessionId: string }): React.JSX.
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        {label} <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">{shortcutHint}</kbd>
+        {label}{' '}
+        <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">{shortcutHint}</kbd>
       </TooltipContent>
     </Tooltip>
   )

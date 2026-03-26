@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CheckSquare2Icon,
   FileIcon,
@@ -34,11 +35,11 @@ import {
   unstageAllGitFiles,
   unstageGitFile
 } from '@/lib/git'
+import { invalidateGitCwd, invalidateGitFile } from '@/lib/git-query'
+import { gitKeys } from '@/lib/query-keys'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import type { GitChangedFile, GitFileContents } from '@pi-code/shared/session'
-
-// ─── File status helpers ────────────────────────────────────────────────────
+import type { GitChangedFile } from '@pi-code/shared/session'
 
 function statusIcon(status: GitChangedFile['status']): React.JSX.Element {
   switch (status) {
@@ -98,8 +99,6 @@ function stagingTooltip(staging: GitChangedFile['staging']): string {
       return 'Unstaged — click to stage'
   }
 }
-
-// ─── Diff viewer styles ─────────────────────────────────────────────────────
 
 const MONO_FONT = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace'
 
@@ -166,92 +165,75 @@ const diffStyles = {
   }
 }
 
-// ─── File row with expandable diff ──────────────────────────────────────────
+function buildFileVersion(file: GitChangedFile): string {
+  return [file.status, file.staging, file.insertions, file.deletions, file.oldPath ?? ''].join(':')
+}
 
 function FileRow({
   file,
   cwd,
   open,
-  onToggle,
-  onRefresh
+  onToggle
 }: {
   file: GitChangedFile
   cwd: string
   open: boolean
   onToggle: () => void
-  onRefresh: () => void
 }): React.JSX.Element {
-  const [contents, setContents] = useState<GitFileContents | null>(null)
-  const [loading, setLoading] = useState(false)
-  const openRef = useRef(open)
+  const queryClient = useQueryClient()
+  const fileVersion = buildFileVersion(file)
 
-  const loadContents = useCallback(async () => {
-    setLoading(true)
-    try {
-      const result = await getGitFileContents(cwd, file.path)
-      setContents(result)
-    } catch (err) {
-      console.error('Failed to load file contents:', err)
-    } finally {
-      setLoading(false)
+  const contentsQuery = useQuery({
+    queryKey: gitKeys.fileContents(cwd, file.path, fileVersion),
+    queryFn: () => getGitFileContents(cwd, file.path),
+    enabled: open,
+    gcTime: 5 * 60_000
+  })
+
+  const toggleStagingMutation = useMutation({
+    mutationFn: () =>
+      file.staging === 'staged' ? unstageGitFile(cwd, file.path) : stageGitFile(cwd, file.path),
+    onSuccess: async () => {
+      await invalidateGitCwd(queryClient, cwd)
+      await invalidateGitFile(queryClient, cwd, file.path)
     }
-  }, [cwd, file.path])
+  })
 
-  // Keep ref in sync with prop
-  useEffect(() => {
-    openRef.current = open
-  }, [open])
-
-  // Reload diff contents when the file's staging state changes (from polling)
-  useEffect(() => {
-    if (openRef.current) {
-      loadContents()
+  const revertMutation = useMutation({
+    mutationFn: () => revertGitFile(cwd, file.path),
+    onSuccess: async (result) => {
+      if (!result.success) return
+      await invalidateGitCwd(queryClient, cwd)
+      await invalidateGitFile(queryClient, cwd, file.path)
     }
-  }, [file.staging, loadContents])
-
-  // Load contents when opened
-  useEffect(() => {
-    if (open && contents === null) {
-      loadContents()
-    }
-  }, [open, contents, loadContents])
-
-  function handleOpenChange(next: boolean): void {
-    onToggle()
-    if (next && contents === null) {
-      loadContents()
-    }
-  }
+  })
 
   async function handleToggleStaging(e: React.MouseEvent): Promise<void> {
     e.stopPropagation()
     e.preventDefault()
-    if (file.staging === 'staged') {
-      await unstageGitFile(cwd, file.path)
-    } else {
-      await stageGitFile(cwd, file.path)
-    }
-    onRefresh()
+    await toggleStagingMutation.mutateAsync()
   }
 
   async function handleRevert(e: React.MouseEvent): Promise<void> {
     e.stopPropagation()
     e.preventDefault()
-    const result = await revertGitFile(cwd, file.path)
-    if (result.success) onRefresh()
+    await revertMutation.mutateAsync()
   }
 
   const fileName = file.path.split('/').pop()!
   const dirPath = file.path.split('/').slice(0, -1).join('/')
   const label = statusLabel(file.status)
+  const isLoading = contentsQuery.isPending || (contentsQuery.isFetching && !contentsQuery.data)
+  const contents = contentsQuery.data
+  const controlsDisabled = toggleStagingMutation.isPending || revertMutation.isPending
 
   return (
-    <Collapsible open={open} onOpenChange={handleOpenChange} className="border-b border-border">
+    <Collapsible open={open} onOpenChange={onToggle} className="border-b border-border">
       <CollapsibleTrigger asChild>
         <div
           role="button"
           tabIndex={0}
-          className="group flex w-full cursor-default items-center gap-1.5 px-2 py-1.5 text-left hover:bg-muted/50 transition-colors"
+          className="group flex w-full cursor-default items-center gap-1.5 px-2 py-1.5 text-left transition-colors hover:bg-muted/50"
         >
           <span className={cn('shrink-0', statusColor(file.status))}>
             {statusIcon(file.status)}
@@ -272,7 +254,6 @@ function FileRow({
             </span>
           )}
 
-          {/* Stats + actions */}
           <div className="flex shrink-0 items-center gap-1.5">
             <span className="font-mono text-[10px] text-muted-foreground">
               {file.insertions > 0 && <span className="text-emerald-500">+{file.insertions}</span>}
@@ -299,7 +280,8 @@ function FileRow({
                   variant="ghost"
                   size="icon-xs"
                   className="no-drag shrink-0"
-                  onClick={handleRevert}
+                  onClick={(event) => void handleRevert(event)}
+                  disabled={controlsDisabled}
                 >
                   <Undo2Icon className="size-3" />
                 </Button>
@@ -311,8 +293,9 @@ function FileRow({
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={handleToggleStaging}
+                  className="shrink-0 text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={(event) => void handleToggleStaging(event)}
+                  disabled={controlsDisabled}
                 >
                   {stagingIcon(file.staging)}
                 </button>
@@ -324,7 +307,7 @@ function FileRow({
       </CollapsibleTrigger>
 
       <CollapsibleContent className="border-t border-border">
-        {loading ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-6">
             <LoaderIcon className="size-3.5 animate-spin text-muted-foreground" />
           </div>
@@ -357,27 +340,60 @@ function FileRow({
   )
 }
 
-// ─── Main git changes panel ─────────────────────────────────────────────────
-
-// Store expanded paths per cwd so they survive session switches
 const expandedPathsByCwd = new Map<string, Set<string>>()
 
-export function GitChangesView({ cwd }: { cwd: string }): React.JSX.Element {
-  const [files, setFiles] = useState<GitChangedFile[]>([])
-  const [hasLoaded, setHasLoaded] = useState(false)
+export function GitChangesView({
+  cwd,
+  active
+}: {
+  cwd: string
+  active: boolean
+}): React.JSX.Element {
+  const queryClient = useQueryClient()
+  const [expandedCwd, setExpandedCwd] = useState(cwd)
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(
     () => expandedPathsByCwd.get(cwd) ?? new Set()
   )
 
-  // Sync with module-level cache
   useEffect(() => {
-    expandedPathsByCwd.set(cwd, expandedPaths)
-  }, [cwd, expandedPaths])
+    expandedPathsByCwd.set(expandedCwd, expandedPaths)
+  }, [expandedCwd, expandedPaths])
 
-  // Restore expanded paths when switching sessions
-  useEffect(() => {
+  if (expandedCwd !== cwd) {
+    setExpandedCwd(cwd)
     setExpandedPaths(expandedPathsByCwd.get(cwd) ?? new Set())
-  }, [cwd])
+  }
+
+  const filesQuery = useQuery({
+    queryKey: gitKeys.changedFiles(cwd),
+    queryFn: () => getChangedFiles(cwd),
+    select: (result) => [...result].sort((a, b) => a.path.localeCompare(b.path)),
+    enabled: Boolean(cwd) && active,
+    staleTime: 3_000,
+    gcTime: 15 * 60_000,
+    refetchInterval: active ? 5_000 : false
+  })
+
+  const revertAllMutation = useMutation({
+    mutationFn: () => revertAllGitFiles(cwd),
+    onSuccess: async () => {
+      await invalidateGitCwd(queryClient, cwd)
+      await queryClient.invalidateQueries({ queryKey: ['git', 'fileContents', cwd] })
+    }
+  })
+
+  const toggleAllStagingMutation = useMutation({
+    mutationFn: async (allStaged: boolean) => {
+      if (allStaged) {
+        return unstageAllGitFiles(cwd)
+      }
+      return stageAllGitFiles(cwd)
+    },
+    onSuccess: async () => {
+      await invalidateGitCwd(queryClient, cwd)
+      await queryClient.invalidateQueries({ queryKey: ['git', 'fileContents', cwd] })
+    }
+  })
 
   function toggleExpanded(path: string): void {
     setExpandedPaths((prev) => {
@@ -391,25 +407,21 @@ export function GitChangesView({ cwd }: { cwd: string }): React.JSX.Element {
     })
   }
 
-  const fetchFiles = useCallback(async () => {
-    try {
-      const result = await getChangedFiles(cwd)
-      result.sort((a, b) => a.path.localeCompare(b.path))
-      setFiles(result)
-    } catch (err) {
-      console.error('Failed to fetch changed files:', err)
-    } finally {
-      setHasLoaded(true)
-    }
-  }, [cwd])
+  const files = filesQuery.data ?? []
+  const totalCount = files.length
+  const stagedCount = files.filter((f) => f.staging === 'staged' || f.staging === 'partial').length
+  const allStaged = totalCount > 0 && stagedCount === totalCount
+  const headerBusy = revertAllMutation.isPending || toggleAllStagingMutation.isPending
 
-  useEffect(() => {
-    fetchFiles()
-    const interval = setInterval(fetchFiles, 5000)
-    return () => clearInterval(interval)
-  }, [fetchFiles])
+  if ((filesQuery.isPending || filesQuery.isFetching) && !filesQuery.data) {
+    return (
+      <div className="flex size-full items-center justify-center py-6">
+        <LoaderIcon className="size-4 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
 
-  if (hasLoaded && files.length === 0) {
+  if (files.length === 0) {
     return (
       <div className="flex size-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
         No uncommitted changes on your local branch.
@@ -417,13 +429,8 @@ export function GitChangesView({ cwd }: { cwd: string }): React.JSX.Element {
     )
   }
 
-  const totalCount = files.length
-  const stagedCount = files.filter((f) => f.staging === 'staged' || f.staging === 'partial').length
-  const allStaged = stagedCount === totalCount
-
   return (
     <div className="flex h-full min-w-0 flex-col overflow-hidden">
-      {/* Summary header */}
       <div className="flex shrink-0 items-center justify-between border-b border-border px-2 py-1.5">
         <span className="text-xs text-muted-foreground">
           {totalCount} changed file{totalCount !== 1 ? 's' : ''}
@@ -436,7 +443,7 @@ export function GitChangesView({ cwd }: { cwd: string }): React.JSX.Element {
             <Tooltip>
               <TooltipTrigger asChild>
                 <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon-xs">
+                  <Button variant="ghost" size="icon-xs" disabled={headerBusy}>
                     <Undo2Icon className="size-3.5" />
                   </Button>
                 </AlertDialogTrigger>
@@ -455,10 +462,7 @@ export function GitChangesView({ cwd }: { cwd: string }): React.JSX.Element {
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   variant="destructive"
-                  onClick={async () => {
-                    await revertAllGitFiles(cwd)
-                    fetchFiles()
-                  }}
+                  onClick={() => void revertAllMutation.mutateAsync()}
                 >
                   Revert all
                 </AlertDialogAction>
@@ -469,15 +473,9 @@ export function GitChangesView({ cwd }: { cwd: string }): React.JSX.Element {
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="text-muted-foreground hover:text-foreground transition-colors"
-                onClick={async () => {
-                  if (allStaged) {
-                    await unstageAllGitFiles(cwd)
-                  } else {
-                    await stageAllGitFiles(cwd)
-                  }
-                  fetchFiles()
-                }}
+                className="text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => void toggleAllStagingMutation.mutateAsync(allStaged)}
+                disabled={headerBusy}
               >
                 {allStaged ? (
                   <CheckSquare2Icon className="size-3.5 text-emerald-500" />
@@ -493,16 +491,14 @@ export function GitChangesView({ cwd }: { cwd: string }): React.JSX.Element {
         </div>
       </div>
 
-      {/* File list — vertical scroll, horizontal clipped */}
       <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
         {files.map((file) => (
           <FileRow
-            key={file.path}
+            key={`${file.path}:${buildFileVersion(file)}`}
             file={file}
             cwd={cwd}
             open={expandedPaths.has(file.path)}
             onToggle={() => toggleExpanded(file.path)}
-            onRefresh={fetchFiles}
           />
         ))}
       </div>

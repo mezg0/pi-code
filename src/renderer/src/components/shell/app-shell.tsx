@@ -29,8 +29,10 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/componen
 import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useHotkey } from '@tanstack/react-hotkeys'
+import { useQuery } from '@tanstack/react-query'
 import { extractLatestPlan, getPlanMessageKey } from '@/lib/plan'
 import { getGitStatus, isGitRepo } from '@/lib/git'
+import { gitKeys } from '@/lib/query-keys'
 import { getAgentMessages, onAgentMessages, type Project, type Session } from '@/lib/sessions'
 import { getShortcutDisplay, SHORTCUTS } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
@@ -84,16 +86,16 @@ export function AppShell({
 }): React.JSX.Element {
   const [sidebarOpen, setSidebarOpen] = useState(() => loadLeftSidebarOpen())
   const [toolPanelOpen, setToolPanelOpen] = useState(() => loadToolPanelOpen())
-  const [toolTabByProjectPath, setToolTabByProjectPath] = useState<
-    Record<string, ToolTab | null>
-  >(() => {
-    const initial: Record<string, ToolTab | null> = {}
-    for (const p of projects) {
-      const stored = loadProjectViewState(p.repoPath)
-      initial[p.repoPath] = stored.toolTab
+  const [toolTabByProjectPath, setToolTabByProjectPath] = useState<Record<string, ToolTab | null>>(
+    () => {
+      const initial: Record<string, ToolTab | null> = {}
+      for (const p of projects) {
+        const stored = loadProjectViewState(p.repoPath)
+        initial[p.repoPath] = stored.toolTab
+      }
+      return initial
     }
-    return initial
-  })
+  )
   const sessionGroups = useMemo(() => groupSessions(projects, sessions), [projects, sessions])
   const prStatusMap = usePRStatus(sessions)
   // Use the worktree path when available so each workspace gets its own tool state
@@ -211,14 +213,33 @@ function AppShellContent({
   const isMobile = useIsMobile()
   const sidebarCollapsed = state === 'collapsed'
   const [commitOpen, setCommitOpen] = useState(false)
-  const [hasChanges, setHasChanges] = useState(false)
-  const [branchName, setBranchName] = useState('')
   const [hasPlan, setHasPlan] = useState(false)
   const [dismissedPlanKey, setDismissedPlanKey] = useState<string | null>(null)
   const [currentPlanKey, setCurrentPlanKey] = useState<string | null>(null)
   const isWorktreeSession = Boolean(activeSession?.worktreePath)
   const cwd = activeSession?.worktreePath ?? activeSession?.repoPath
   const toolPanelSize = loadToolPanelSize()
+
+  const gitRepoQuery = useQuery({
+    queryKey: cwd ? gitKeys.isRepo(cwd) : ['git', 'isRepo', 'none'],
+    queryFn: () => isGitRepo(cwd!),
+    enabled: Boolean(cwd),
+    staleTime: 5_000,
+    gcTime: 15 * 60_000,
+    refetchInterval: cwd ? 5_000 : false
+  })
+
+  const gitStatusQuery = useQuery({
+    queryKey: cwd ? gitKeys.status(cwd) : ['git', 'status', 'none'],
+    queryFn: () => getGitStatus(cwd!),
+    enabled: Boolean(cwd) && gitRepoQuery.data === true,
+    staleTime: 3_000,
+    gcTime: 15 * 60_000,
+    refetchInterval: cwd && gitRepoQuery.data === true ? 5_000 : false
+  })
+
+  const hasChanges = gitRepoQuery.data === true ? (gitStatusQuery.data?.hasChanges ?? false) : false
+  const branchName = gitRepoQuery.data === true ? (gitStatusQuery.data?.branch ?? '') : ''
 
   const planVisible = hasPlan && currentPlanKey !== dismissedPlanKey
   const displayedToolTab = activeToolTab ?? 'git'
@@ -236,11 +257,7 @@ function AppShellContent({
 
     const size = loadToolPanelSize()
     syncingLayoutRef.current = true
-    group.setLayout(
-      toolPanelOpen
-        ? { main: 100 - size, tool: size }
-        : { main: 100, tool: 0 }
-    )
+    group.setLayout(toolPanelOpen ? { main: 100 - size, tool: size } : { main: 100, tool: 0 })
 
     const frameId = window.requestAnimationFrame(() => {
       syncingLayoutRef.current = false
@@ -269,35 +286,6 @@ function AppShellContent({
     // If the plan tab is active, switch to git instead of closing the panel
     setActiveToolTab((current) => (current === 'plan' ? 'git' : current))
   }, [currentPlanKey, setActiveToolTab])
-
-  const checkForChanges = useCallback(async () => {
-    if (!cwd) {
-      setHasChanges(false)
-      setBranchName('')
-      return
-    }
-    try {
-      const isRepo = await isGitRepo(cwd)
-      if (!isRepo) {
-        setHasChanges(false)
-        setBranchName('')
-        return
-      }
-      const status = await getGitStatus(cwd)
-      setHasChanges(status.hasChanges)
-      setBranchName(status.branch)
-    } catch {
-      setHasChanges(false)
-    }
-  }, [cwd])
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch on mount is intentional
-    checkForChanges()
-    // Poll for changes every 5 seconds
-    const interval = setInterval(checkForChanges, 5000)
-    return () => clearInterval(interval)
-  }, [checkForChanges])
 
   // Track tool panel state in refs so the plan effect can read them without re-running
   const activeToolTabRef = useRef(activeToolTab)
@@ -376,10 +364,8 @@ function AppShellContent({
     }
   }, [activeSession?.id, rememberActiveToolTab, setActiveToolTab])
 
-  // Re-check after dialog closes (commit may have changed status)
   function handleCommitOpenChange(open: boolean): void {
     setCommitOpen(open)
-    if (!open) checkForChanges()
   }
 
   // --- Shell keyboard shortcuts ---
@@ -387,9 +373,13 @@ function AppShellContent({
 
   const hasSession = Boolean(activeSession)
 
-  useHotkey(SHORTCUTS['toggle-panel'].keys, useCallback(() => toggleToolPanel(), [toggleToolPanel]), {
-    enabled: hasSession
-  })
+  useHotkey(
+    SHORTCUTS['toggle-panel'].keys,
+    useCallback(() => toggleToolPanel(), [toggleToolPanel]),
+    {
+      enabled: hasSession
+    }
+  )
 
   useHotkey(
     SHORTCUTS['open-commit'].keys,
@@ -399,11 +389,31 @@ function AppShellContent({
     { enabled: hasSession }
   )
 
-  useHotkey(SHORTCUTS['tab-plan'].keys, useCallback(() => setActiveToolTab('plan'), [setActiveToolTab]), { enabled: hasSession })
-  useHotkey(SHORTCUTS['tab-git'].keys, useCallback(() => setActiveToolTab('git'), [setActiveToolTab]), { enabled: hasSession })
-  useHotkey(SHORTCUTS['tab-terminal'].keys, useCallback(() => setActiveToolTab('terminal'), [setActiveToolTab]), { enabled: hasSession })
-  useHotkey(SHORTCUTS['tab-files'].keys, useCallback(() => setActiveToolTab('files'), [setActiveToolTab]), { enabled: hasSession })
-  useHotkey(SHORTCUTS['tab-browser'].keys, useCallback(() => setActiveToolTab('browser'), [setActiveToolTab]), { enabled: hasSession })
+  useHotkey(
+    SHORTCUTS['tab-plan'].keys,
+    useCallback(() => setActiveToolTab('plan'), [setActiveToolTab]),
+    { enabled: hasSession }
+  )
+  useHotkey(
+    SHORTCUTS['tab-git'].keys,
+    useCallback(() => setActiveToolTab('git'), [setActiveToolTab]),
+    { enabled: hasSession }
+  )
+  useHotkey(
+    SHORTCUTS['tab-terminal'].keys,
+    useCallback(() => setActiveToolTab('terminal'), [setActiveToolTab]),
+    { enabled: hasSession }
+  )
+  useHotkey(
+    SHORTCUTS['tab-files'].keys,
+    useCallback(() => setActiveToolTab('files'), [setActiveToolTab]),
+    { enabled: hasSession }
+  )
+  useHotkey(
+    SHORTCUTS['tab-browser'].keys,
+    useCallback(() => setActiveToolTab('browser'), [setActiveToolTab]),
+    { enabled: hasSession }
+  )
 
   // Model shortcuts (Mod+Shift+1–9)
   useModelShortcuts(activeSession?.id)
@@ -435,12 +445,7 @@ function AppShellContent({
                   Worktree
                 </span>
               ) : null}
-              <BranchPicker
-                cwd={cwd}
-                currentBranch={branchName}
-                disabled={hasChanges}
-                onBranchChanged={checkForChanges}
-              />
+              <BranchPicker cwd={cwd} currentBranch={branchName} disabled={hasChanges} />
 
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -456,7 +461,10 @@ function AppShellContent({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Commit changes <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">{getShortcutDisplay('open-commit')}</kbd>
+                  Commit changes{' '}
+                  <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">
+                    {getShortcutDisplay('open-commit')}
+                  </kbd>
                 </TooltipContent>
               </Tooltip>
 
@@ -500,7 +508,12 @@ function AppShellContent({
         </div>
       </header>
 
-      <CommitDialog open={commitOpen} onOpenChange={handleCommitOpenChange} cwd={cwd} sessionId={activeSession?.id} />
+      <CommitDialog
+        open={commitOpen}
+        onOpenChange={handleCommitOpenChange}
+        cwd={cwd}
+        sessionId={activeSession?.id}
+      />
 
       <div className="min-w-0 flex-1 overflow-hidden">
         {showPanelToggle ? (
@@ -541,6 +554,7 @@ function AppShellContent({
                     sessionId={activeSession?.id}
                     hasPlan={planVisible}
                     onDismissPlan={handleDismissPlan}
+                    open={toolPanelOpen}
                   />
                 </ResizablePanel>
               </ResizablePanelGroup>
@@ -549,43 +563,46 @@ function AppShellContent({
             {/* Mobile: content always visible, tool panel opens as bottom sheet */}
             <div className="flex h-full flex-col md:hidden">
               {children}
-              {isMobile && <Drawer.Root
-                open={toolPanelOpen}
-                onOpenChange={(open) => {
-                  if (!open) {
-                    if (displayedToolTab === 'plan') handleDismissPlan()
-                    setActiveToolTab(null)
-                  }
-                }}
-              >
-                <Drawer.Portal>
-                  <Drawer.Overlay className="fixed inset-0 z-50 bg-black/40" />
-                  <Drawer.Content
-                    className="fixed inset-x-0 bottom-0 z-50 flex h-[100dvh] flex-col rounded-t-xl bg-background"
-                    onOpenAutoFocus={(e) => e.preventDefault()}
-                  >
-                    <div className="mx-auto mt-3 mb-2 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/20" />
-                    <Drawer.Title className="sr-only">Tools</Drawer.Title>
-                    <div className="min-h-0 flex-1 overflow-hidden">
-                      <ToolPanel
-                        activeTab={displayedToolTab}
-                        onSelect={setActiveToolTab}
-                        onClose={() => setActiveToolTab(null)}
-                        cwd={cwd}
-                        sessionId={activeSession?.id}
-                        hasPlan={planVisible}
-                        onDismissPlan={() => {
-                          handleDismissPlan()
-                          setActiveToolTab(null)
-                        }}
-                        mobile
-                        onCommit={() => setCommitOpen(true)}
-                        hasChanges={hasChanges}
-                      />
-                    </div>
-                  </Drawer.Content>
-                </Drawer.Portal>
-              </Drawer.Root>}
+              {isMobile && (
+                <Drawer.Root
+                  open={toolPanelOpen}
+                  onOpenChange={(open) => {
+                    if (!open) {
+                      if (displayedToolTab === 'plan') handleDismissPlan()
+                      setActiveToolTab(null)
+                    }
+                  }}
+                >
+                  <Drawer.Portal>
+                    <Drawer.Overlay className="fixed inset-0 z-50 bg-black/40" />
+                    <Drawer.Content
+                      className="fixed inset-x-0 bottom-0 z-50 flex h-[100dvh] flex-col rounded-t-xl bg-background"
+                      onOpenAutoFocus={(e) => e.preventDefault()}
+                    >
+                      <div className="mx-auto mt-3 mb-2 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/20" />
+                      <Drawer.Title className="sr-only">Tools</Drawer.Title>
+                      <div className="min-h-0 flex-1 overflow-hidden">
+                        <ToolPanel
+                          activeTab={displayedToolTab}
+                          onSelect={setActiveToolTab}
+                          onClose={() => setActiveToolTab(null)}
+                          cwd={cwd}
+                          sessionId={activeSession?.id}
+                          hasPlan={planVisible}
+                          onDismissPlan={() => {
+                            handleDismissPlan()
+                            setActiveToolTab(null)
+                          }}
+                          mobile
+                          open={toolPanelOpen}
+                          onCommit={() => setCommitOpen(true)}
+                          hasChanges={hasChanges}
+                        />
+                      </div>
+                    </Drawer.Content>
+                  </Drawer.Portal>
+                </Drawer.Root>
+              )}
             </div>
           </>
         ) : (

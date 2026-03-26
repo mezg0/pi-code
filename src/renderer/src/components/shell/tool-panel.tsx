@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import {
   CodeIcon,
   FileTextIcon,
@@ -77,6 +77,7 @@ export function ToolPanel({
   hasPlan,
   onDismissPlan,
   mobile,
+  open = true,
   onCommit,
   hasChanges
 }: {
@@ -88,6 +89,7 @@ export function ToolPanel({
   hasPlan: boolean
   onDismissPlan?: () => void
   mobile?: boolean
+  open?: boolean
   onCommit?: () => void
   hasChanges?: boolean
 }): React.JSX.Element {
@@ -102,14 +104,9 @@ export function ToolPanel({
   // BrowserView (webview) and TerminalView mounted across project switches,
   // avoiding page reloads and terminal resets.
   const [visitedCwds, setVisitedCwds] = useState<string[]>(() => (cwd ? [cwd] : []))
-  const visitedCwdsRef = useRef(visitedCwds)
-  visitedCwdsRef.current = visitedCwds
-  useEffect(() => {
-    if (cwd && !visitedCwdsRef.current.includes(cwd)) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- adding newly visited cwd is intentional
-      setVisitedCwds((prev) => (prev.includes(cwd) ? prev : [...prev, cwd]))
-    }
-  }, [cwd])
+  if (cwd && !visitedCwds.includes(cwd)) {
+    setVisitedCwds((prev) => (prev.includes(cwd) ? prev : [...prev, cwd]))
+  }
 
   return (
     <div className="flex h-full min-w-0 flex-col overflow-hidden border-l border-border">
@@ -131,7 +128,10 @@ export function ToolPanel({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {tab.label} <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">{shortcutHint}</kbd>
+                  {tab.label}{' '}
+                  <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">
+                    {shortcutHint}
+                  </kbd>
                 </TooltipContent>
               </Tooltip>
             )
@@ -139,12 +139,7 @@ export function ToolPanel({
         </div>
         <div className="flex items-center gap-1">
           {mobile && activeTab === 'git' && onCommit ? (
-            <Button
-              variant="outline"
-              size="xs"
-              disabled={!hasChanges}
-              onClick={onCommit}
-            >
+            <Button variant="outline" size="xs" disabled={!hasChanges} onClick={onCommit}>
               <GitCommitHorizontalIcon data-icon="inline-start" />
               Commit
             </Button>
@@ -163,7 +158,7 @@ export function ToolPanel({
         )}
         {cwd && (
           <div className={activeTab === 'git' ? 'size-full' : 'sr-only'}>
-            <GitChangesView cwd={cwd} />
+            <GitChangesView cwd={cwd} active={open && activeTab === 'git'} />
           </div>
         )}
         {cwd && (
@@ -175,28 +170,26 @@ export function ToolPanel({
             stay alive across project switches (no webview reload / terminal reset).
             Skip on mobile since these tabs are hidden and xterm's helper textarea
             can steal focus and trigger the iOS keyboard. */}
-        {!mobile && visitedCwds.map((projectCwd) => (
-          <div
-            key={`term:${projectCwd}`}
-            className={
-              activeTab === 'terminal' && projectCwd === cwd
-                ? 'size-full bg-black'
-                : 'sr-only'
-            }
-          >
-            <TerminalView id={`term:${projectCwd}`} cwd={projectCwd} />
-          </div>
-        ))}
-        {!mobile && visitedCwds.map((projectCwd) => (
-          <div
-            key={`browser:${projectCwd}`}
-            className={
-              activeTab === 'browser' && projectCwd === cwd ? 'size-full' : 'sr-only'
-            }
-          >
-            <BrowserView id={`browser:${projectCwd}`} />
-          </div>
-        ))}
+        {!mobile &&
+          visitedCwds.map((projectCwd) => (
+            <div
+              key={`term:${projectCwd}`}
+              className={
+                activeTab === 'terminal' && projectCwd === cwd ? 'size-full bg-black' : 'sr-only'
+              }
+            >
+              <TerminalView id={`term:${projectCwd}`} cwd={projectCwd} />
+            </div>
+          ))}
+        {!mobile &&
+          visitedCwds.map((projectCwd) => (
+            <div
+              key={`browser:${projectCwd}`}
+              className={activeTab === 'browser' && projectCwd === cwd ? 'size-full' : 'sr-only'}
+            >
+              <BrowserView id={`browser:${projectCwd}`} />
+            </div>
+          ))}
 
         {!cwd && activeTab !== 'git' && activeTab !== 'files' && activeTab !== 'plan' && (
           <div className="flex size-full items-center justify-center p-6 text-center text-sm text-muted-foreground">

@@ -1,64 +1,37 @@
-import { useEffect, useRef, useState } from 'react'
+import { useMemo } from 'react'
+import { useQueries } from '@tanstack/react-query'
+
 import { getGitPRStatus } from '@/lib/git'
+import { gitKeys } from '@/lib/query-keys'
 import type { GitPRStatus, Session } from '@/lib/sessions'
 
-/** How often to re-check PR status (ms) */
 const POLL_INTERVAL = 30_000
 
 type PRStatusMap = Map<string, GitPRStatus>
 
-/**
- * Fetches PR status for all worktree sessions and polls periodically.
- * Returns a map of session ID → GitPRStatus.
- */
 export function usePRStatus(sessions: Session[]): PRStatusMap {
-  const [statusMap, setStatusMap] = useState<PRStatusMap>(new Map())
-  const mountedRef = useRef(true)
+  const worktreeSessions = sessions.filter(
+    (session) => !session.archived && session.worktreePath && session.branch
+  )
 
-  // Only care about worktree sessions that have a branch
-  const worktreeSessions = sessions.filter((s) => !s.archived && s.worktreePath && s.branch)
+  const results = useQueries({
+    queries: worktreeSessions.map((session) => ({
+      queryKey: gitKeys.prStatus(session.repoPath, session.branch!),
+      queryFn: () => getGitPRStatus(session.repoPath, session.branch!),
+      staleTime: POLL_INTERVAL,
+      refetchInterval: POLL_INTERVAL,
+      enabled: Boolean(session.branch)
+    }))
+  })
 
-  useEffect(() => {
-    mountedRef.current = true
-    return () => {
-      mountedRef.current = false
-    }
-  }, [])
-
-  useEffect(() => {
-    if (worktreeSessions.length === 0) {
-      setStatusMap(new Map())
-      return
-    }
-
-    async function fetchAll(): Promise<void> {
-      const next = new Map<string, GitPRStatus>()
-
-      // Fetch PR status for each worktree session concurrently
-      const results = await Promise.allSettled(
-        worktreeSessions.map(async (session) => {
-          const status = await getGitPRStatus(session.repoPath, session.branch!)
-          return { sessionId: session.id, status }
-        })
-      )
-
-      for (const result of results) {
-        if (result.status === 'fulfilled') {
-          next.set(result.value.sessionId, result.value.status)
-        }
+  return useMemo(() => {
+    const next = new Map<string, GitPRStatus>()
+    worktreeSessions.forEach((session, index) => {
+      const data = results[index]?.data
+      if (data) {
+        next.set(session.id, data)
       }
-
-      if (mountedRef.current) {
-        setStatusMap(next)
-      }
-    }
-
-    void fetchAll()
-    const timer = setInterval(() => void fetchAll(), POLL_INTERVAL)
-    return () => clearInterval(timer)
-    // Re-run when the set of worktree session IDs changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [worktreeSessions.map((s) => s.id).join(',')])
-
-  return statusMap
+    })
+    return next
+  }, [results, worktreeSessions])
 }
