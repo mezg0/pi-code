@@ -9,15 +9,21 @@ import {
   getAgentState,
   getAvailableModels,
   getPendingQuestion,
+  getPermissionMode,
   getPlanMode,
   sendSessionMessage,
   setModel,
+  setPermissionMode,
   setPlanMode,
   setThinkingLevel,
   steerSession
 } from '../services/pi-runner'
 import { replyToQuestion, rejectQuestion } from '../services/tools/question'
-import type { QuestionAnswer } from '../../shared/session'
+import {
+  getPendingPermission,
+  replyToPermission
+} from '../services/tools/permission'
+import type { QuestionAnswer, PermissionMode, PermissionResponse } from '../../shared/session'
 
 export function registerSessionIpc(): void {
   ipcMain.handle('projects:list', () => listProjects())
@@ -61,5 +67,21 @@ export function registerSessionIpc(): void {
   )
   ipcMain.handle('sessions:questionReject', (_event, requestId: string) =>
     rejectQuestion(requestId)
+  )
+  ipcMain.handle('sessions:pendingPermission', (_event, sessionId: string) =>
+    getPendingPermission(sessionId)
+  )
+  ipcMain.handle(
+    'sessions:permissionReply',
+    (_event, requestId: string, response: PermissionResponse, message?: string) =>
+      replyToPermission(requestId, response, message)
+  )
+  ipcMain.handle('sessions:getPermissionMode', (_event, sessionId: string) =>
+    getPermissionMode(sessionId)
+  )
+  ipcMain.handle(
+    'sessions:setPermissionMode',
+    (_event, sessionId: string, mode: PermissionMode) =>
+      setPermissionMode(sessionId, mode)
   )
 }

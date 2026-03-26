@@ -17,6 +17,9 @@ import type {
   GitWorktreeResult,
   ModelInfo,
   Project,
+  PermissionMode,
+  PermissionResponse,
+  PermissionRequest,
   QuestionAnswer,
   QuestionRequest,
   RpcState,
@@ -24,6 +27,8 @@ import type {
   SessionApi,
   SessionImageInput,
   SessionMessagesPayload,
+  SessionPermissionModePayload,
+  SessionPermissionPayload,
   SessionPlanModePayload,
   SessionQuestionPayload,
   SessionStreamingPayload,
@@ -97,6 +102,26 @@ const api: SessionApi = {
         listener(payload)
       ipcRenderer.on('sessions:question', handler)
       return () => ipcRenderer.off('sessions:question', handler)
+    },
+    getPendingPermission: (sessionId: string) =>
+      ipcRenderer.invoke('sessions:pendingPermission', sessionId) as Promise<PermissionRequest | null>,
+    permissionReply: (requestId: string, response: PermissionResponse, message?: string) =>
+      ipcRenderer.invoke('sessions:permissionReply', requestId, response, message) as Promise<boolean>,
+    getPermissionMode: (sessionId: string) =>
+      ipcRenderer.invoke('sessions:getPermissionMode', sessionId) as Promise<PermissionMode>,
+    setPermissionMode: (sessionId: string, mode: PermissionMode) =>
+      ipcRenderer.invoke('sessions:setPermissionMode', sessionId, mode) as Promise<boolean>,
+    onPermission: (listener): (() => void) => {
+      const handler = (_event: unknown, payload: SessionPermissionPayload): void =>
+        listener(payload)
+      ipcRenderer.on('sessions:permission', handler)
+      return () => ipcRenderer.off('sessions:permission', handler)
+    },
+    onPermissionMode: (listener): (() => void) => {
+      const handler = (_event: unknown, payload: SessionPermissionModePayload): void =>
+        listener(payload)
+      ipcRenderer.on('sessions:permissionMode', handler)
+      return () => ipcRenderer.off('sessions:permissionMode', handler)
     }
   }
 }

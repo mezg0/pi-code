@@ -26,11 +26,19 @@ import { Button } from '@/components/ui/button'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { onBrowserGrab } from '@/lib/browser-grab'
 import { isScrollContainerNearBottom } from '@/lib/chat-scroll'
-import type { AgentMessage, QuestionRequest, Session, SessionImageInput } from '@/lib/sessions'
+import type {
+  AgentMessage,
+  PermissionRequest,
+  QuestionRequest,
+  Session,
+  SessionImageInput
+} from '@/lib/sessions'
 import { SHORTCUTS } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 
 import { ModelSelector } from './model-selector'
+import { PermissionDock } from './permission-dock'
+import { PermissionModeToggle } from './permission-mode-toggle'
 import { PiMessages } from './pi-messages'
 import { PlanModeToggle } from './plan-mode-toggle'
 import { QuestionDock } from './question-dock'
@@ -44,10 +52,12 @@ export function SessionConversation(props: {
   pendingMessages: string[]
   errorMessage: string | null
   questionRequest: QuestionRequest | null
+  permissionRequest: PermissionRequest | null
   onSend: (text: string, images?: SessionImageInput[]) => Promise<void>
   onStop: () => Promise<void>
   onDismissError: () => void
   onQuestionDone: () => void
+  onPermissionDone: () => void
 }): React.JSX.Element {
   const { scrollRef, contentRef, isAtBottom, scrollToBottom } = useStickToBottom({
     resize: 'instant',
@@ -283,8 +293,17 @@ export function SessionConversation(props: {
       </div>
 
       <div className="relative shrink-0">
+        {/* Permission dock — highest priority overlay */}
+        {props.permissionRequest && (
+          <div className="absolute inset-x-0 bottom-0 z-10 px-3 pb-3 sm:px-5">
+            <div className="mx-auto w-full max-w-3xl">
+              <PermissionDock request={props.permissionRequest} onDone={props.onPermissionDone} />
+            </div>
+          </div>
+        )}
+
         {/* Question dock — overlays the prompt input when the AI asks a question */}
-        {props.questionRequest && (
+        {!props.permissionRequest && props.questionRequest && (
           <div className="absolute inset-x-0 bottom-0 z-10 px-3 pb-3 sm:px-5">
             <div className="mx-auto w-full max-w-3xl">
               <QuestionDock request={props.questionRequest} onDone={props.onQuestionDone} />
@@ -292,13 +311,13 @@ export function SessionConversation(props: {
           </div>
         )}
 
-        <div className={cn(props.questionRequest && 'invisible')}>
+        <div className={cn((props.questionRequest || props.permissionRequest) && 'invisible')}>
           <SessionPromptInput
             session={props.session}
             isLoading={props.isLoading}
             isStreaming={props.isStreaming}
             pendingMessages={props.pendingMessages}
-            blocked={!!props.questionRequest}
+            blocked={!!props.questionRequest || !!props.permissionRequest}
             onSend={props.onSend}
             onStop={props.onStop}
           />
@@ -414,7 +433,7 @@ function SessionPromptInput({
               disabled={blocked}
               placeholder={
                 blocked
-                  ? 'Answer the question above…'
+                  ? 'Respond above to continue…'
                   : isStreaming
                     ? 'Send to steer…'
                     : session.status === 'draft'
@@ -427,6 +446,7 @@ function SessionPromptInput({
             <PromptInputTools>
               <ModelSelector sessionId={session.id} />
               <PlanModeToggle sessionId={session.id} />
+              <PermissionModeToggle sessionId={session.id} />
             </PromptInputTools>
             <PromptInputSubmit
               status={

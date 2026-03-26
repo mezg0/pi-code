@@ -18,6 +18,7 @@ import {
   DEFAULT_AGENT,
   DEFAULT_MODEL,
   NEW_SESSION_TITLE,
+  onPermissionEvent,
   onQuestionEvent,
   removeProject,
   updateSession,
@@ -68,6 +69,22 @@ function RootComponent(): React.JSX.Element {
   useEffect(() => {
     return onQuestionEvent((payload) => {
       setQuestionSessionIds((prev) => {
+        const next = new Set(prev)
+        if (payload.request) {
+          next.add(payload.sessionId)
+        } else {
+          next.delete(payload.sessionId)
+        }
+        return next
+      })
+    })
+  }, [])
+
+  // Track sessions with pending permission requests for sidebar indicators
+  const [permissionSessionIds, setPermissionSessionIds] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    return onPermissionEvent((payload) => {
+      setPermissionSessionIds((prev) => {
         const next = new Set(prev)
         if (payload.request) {
           next.add(payload.sessionId)
@@ -210,6 +227,7 @@ function RootComponent(): React.JSX.Element {
         activeSession={activeSession}
         unreadSessionIds={unreadSessionIds}
         questionSessionIds={questionSessionIds}
+        permissionSessionIds={permissionSessionIds}
         title={isSettings ? 'Settings' : (activeSession?.title ?? 'Sessions')}
         showPanelToggle={Boolean(activeSession) && !isSettings}
         onAddProject={handleAddProject}

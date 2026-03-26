@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import {
+  getPendingPermission,
   getPendingQuestion,
   onAgentMessages,
+  onPermissionEvent,
   onQuestionEvent,
   onSessionUpdated,
   onStreamingEvent,
   type AgentMessage,
+  type PermissionRequest,
   type QuestionRequest,
   type Session,
   type SessionStreamingEvent
@@ -22,9 +25,11 @@ type UseSessionStateResult = {
   pendingMessages: string[]
   errorMessage: string | null
   questionRequest: QuestionRequest | null
+  permissionRequest: PermissionRequest | null
   setLoading: () => void
   clearError: () => void
   clearQuestion: () => void
+  clearPermission: () => void
 }
 
 export function useSessionState(
@@ -40,6 +45,7 @@ export function useSessionState(
   const [pendingMessages, setPendingMessages] = useState<string[]>([])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [questionRequest, setQuestionRequest] = useState<QuestionRequest | null>(null)
+  const [permissionRequest, setPermissionRequest] = useState<PermissionRequest | null>(null)
 
   useEffect(() => {
     // Flags to sync streaming state clearing with committed message arrival.
@@ -163,9 +169,17 @@ export function useSessionState(
       setQuestionRequest(payload.request)
     })
 
-    // Recover pending question when navigating back to a session
+    const unsubscribePermission = onPermissionEvent((payload) => {
+      if (payload.sessionId !== sessionId) return
+      setPermissionRequest(payload.request)
+    })
+
+    // Recover pending question/permission when navigating back to a session
     void getPendingQuestion(sessionId).then((request) => {
       if (request) setQuestionRequest(request)
+    })
+    void getPendingPermission(sessionId).then((request) => {
+      if (request) setPermissionRequest(request)
     })
 
     return () => {
@@ -173,6 +187,7 @@ export function useSessionState(
       unsubscribeMessages()
       unsubscribeStreaming()
       unsubscribeQuestion()
+      unsubscribePermission()
       if (endTimeoutId) clearTimeout(endTimeoutId)
       clearStreamingBuffer()
     }
@@ -191,6 +206,10 @@ export function useSessionState(
     setQuestionRequest(null)
   }, [])
 
+  const clearPermission = useCallback((): void => {
+    setPermissionRequest(null)
+  }, [])
+
   return {
     session,
     messages,
@@ -200,8 +219,10 @@ export function useSessionState(
     pendingMessages,
     errorMessage,
     questionRequest,
+    permissionRequest,
     setLoading,
     clearError,
-    clearQuestion
+    clearQuestion,
+    clearPermission
   }
 }

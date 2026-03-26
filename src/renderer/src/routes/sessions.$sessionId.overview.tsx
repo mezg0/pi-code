@@ -36,9 +36,11 @@ function SessionOverviewContent({
     pendingMessages,
     errorMessage,
     questionRequest,
+    permissionRequest,
     setLoading,
     clearError,
-    clearQuestion
+    clearQuestion,
+    clearPermission
   } = useSessionState(initialSession.id, initialSession, initialMessages)
 
   async function handleSend(text: string, images?: SessionImageInput[]): Promise<void> {
@@ -60,10 +62,12 @@ function SessionOverviewContent({
       pendingMessages={pendingMessages}
       errorMessage={errorMessage}
       questionRequest={questionRequest}
+      permissionRequest={permissionRequest}
       onSend={handleSend}
       onStop={handleStop}
       onDismissError={clearError}
       onQuestionDone={clearQuestion}
+      onPermissionDone={clearPermission}
     />
   )
 }

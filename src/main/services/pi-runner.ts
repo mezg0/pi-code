@@ -28,6 +28,13 @@ import { getAuthStorage } from './auth'
 import { loadPiSdk } from './pi-sdk'
 import { getBuiltinExtensionFactories } from './extensions/builtin'
 import { getPlanModeController } from './extensions/plan-mode'
+import {
+  clearAlwaysApprovedForSession,
+  getPermissionModeController,
+  rejectAllPermissionsForSession,
+  setCurrentPermissionSessionId
+} from './tools/permission'
+import type { PermissionMode } from '../../shared/session'
 import { webFetchTool } from './tools/webfetch'
 import {
   askUserQuestionTool,
@@ -330,6 +337,62 @@ export async function setPlanMode(sessionId: string, enabled: boolean): Promise<
   }
 }
 
+// ── Permission mode ─────────────────────────────────────────────────
+
+type PermissionModeEntry = {
+  type?: string
+  customType?: string
+  data?: {
+    mode?: PermissionMode
+  }
+}
+
+function readPermissionModeFromEntries(
+  entries: Array<{ type?: string; customType?: string; data?: { mode?: string } }>
+): PermissionMode {
+  const lastState = entries
+    .filter((entry) => entry.type === 'custom' && entry.customType === 'permission-mode')
+    .pop() as PermissionModeEntry | undefined
+
+  return lastState?.data?.mode ?? 'ask'
+}
+
+export async function getPermissionMode(sessionId: string): Promise<PermissionMode> {
+  const sessionFile = getSessionFile(sessionId)
+  if (!sessionFile) return 'ask'
+
+  const controller = getPermissionModeController(sessionFile)
+  if (controller) return controller.get()
+
+  try {
+    const sessionManager = await createSessionManagerForSession(sessionId)
+    return readPermissionModeFromEntries(sessionManager.getEntries() as PermissionModeEntry[])
+  } catch {
+    return 'ask'
+  }
+}
+
+export async function setPermissionMode(
+  sessionId: string,
+  mode: PermissionMode
+): Promise<boolean> {
+  try {
+    await ensureAgentSession(sessionId)
+    const sessionFile = getSessionFile(sessionId)
+    if (!sessionFile) return false
+
+    const controller = getPermissionModeController(sessionFile)
+    if (!controller) return false
+
+    controller.set(mode)
+    emitToRenderers('sessions:permissionMode', { sessionId, mode })
+    return true
+  } catch (error) {
+    console.error(`[pi-runner] setPermissionMode failed for ${sessionId}:`, error)
+    return false
+  }
+}
+
 export async function getAvailableModels(sessionId: string): Promise<ModelInfo[]> {
   try {
     const agentSession = await ensureAgentSession(sessionId)
@@ -406,8 +469,9 @@ export async function sendSessionMessage(
       mimeType: image.mimeType
     }))
 
-    // Set the current session ID so the question tool knows which session it's in
+    // Set the current session ID so the question/permission tools know which session it's in
     setCurrentSessionId(sessionId)
+    setCurrentPermissionSessionId(sessionId)
 
     if (agentSession.isStreaming) {
       await agentSession.prompt(text, { streamingBehavior: 'steer', images: piImages })
@@ -451,6 +515,7 @@ export async function abortSession(sessionId: string): Promise<boolean> {
   try {
     abortingSessions.add(sessionId)
     rejectAllQuestionsForSession(sessionId)
+    rejectAllPermissionsForSession(sessionId)
     await agentSession.abort()
 
     emitStreamingEvent(sessionId, { type: 'agent_end', pendingMessages: [] })
@@ -470,6 +535,8 @@ export async function abortSession(sessionId: string): Promise<boolean> {
 export async function disposeSession(sessionId: string): Promise<boolean> {
   pendingAgentSessions.delete(sessionId)
   rejectAllQuestionsForSession(sessionId)
+  rejectAllPermissionsForSession(sessionId)
+  clearAlwaysApprovedForSession(sessionId)
 
   const agentSession = agentSessions.get(sessionId)
   if (agentSession) {
