@@ -6,7 +6,7 @@ import type {
   SessionManager as PiSessionManager,
   ToolDefinition
 } from '@mariozechner/pi-coding-agent'
-import APPEND_SYSTEM_PROMPT from './app-system-prompt.md?raw'
+import SYSTEM_PROMPT from './app-system-prompt.md?raw'
 import { cloneStreamingSnapshot } from '../../shared/streaming-contract'
 import { formatUserFacingError } from '../../shared/format-error'
 import { deriveSessionTitle, NEW_SESSION_TITLE } from '../../shared/session-defaults'
@@ -151,8 +151,8 @@ async function createTrackedAgentSession(sessionId: string): Promise<AgentSessio
   const agentCwd = session.worktreePath ?? session.repoPath
   const resourceLoader = new DefaultResourceLoader({
     cwd: agentCwd,
-    systemPromptOverride: () => undefined,
-    appendSystemPromptOverride: () => [APPEND_SYSTEM_PROMPT],
+    systemPromptOverride: () => SYSTEM_PROMPT,
+    appendSystemPromptOverride: () => [],
     extensionFactories: getBuiltinExtensionFactories()
   })
   await resourceLoader.reload()
