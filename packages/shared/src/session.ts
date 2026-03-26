@@ -61,6 +61,10 @@ export type SessionMessagesPayload = {
 
 export type SessionStreamingEvent =
   | {
+      type: 'stream_start'
+      pendingMessages: string[]
+    }
+  | {
       type: 'message_update'
       message: AgentMessage | null
       pendingMessages: string[]

@@ -216,8 +216,18 @@ function handleAgentEvent(
 ): void {
   switch (event.type) {
     case 'message_start':
-    case 'turn_start':
     case 'turn_end':
+      emitMessages(sessionId, agentSession.messages)
+      return
+
+    case 'turn_start':
+      emitStreamingEvent(sessionId, {
+        type: 'stream_start',
+        pendingMessages: [
+          ...agentSession.getSteeringMessages(),
+          ...agentSession.getFollowUpMessages()
+        ]
+      })
       emitMessages(sessionId, agentSession.messages)
       return
 
@@ -375,10 +385,7 @@ export async function getPermissionMode(sessionId: string): Promise<PermissionMo
   }
 }
 
-export async function setPermissionMode(
-  sessionId: string,
-  mode: PermissionMode
-): Promise<boolean> {
+export async function setPermissionMode(sessionId: string, mode: PermissionMode): Promise<boolean> {
   try {
     await ensureAgentSession(sessionId)
     const sessionFile = getSessionFile(sessionId)

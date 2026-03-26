@@ -12,9 +12,12 @@ import {
   type PermissionRequest,
   type QuestionRequest,
   type Session,
+  type SessionStatus,
   type SessionStreamingEvent
 } from '@/lib/sessions'
 import { cloneStreamingSnapshot } from '@pi-code/shared/streaming-contract'
+
+const BUSY_STATUSES: Set<SessionStatus> = new Set(['queued', 'starting', 'running'])
 
 type UseSessionStateResult = {
   session: Session
@@ -27,6 +30,7 @@ type UseSessionStateResult = {
   questionRequest: QuestionRequest | null
   permissionRequest: PermissionRequest | null
   setLoading: () => void
+  addOptimisticPending: (text: string) => void
   clearError: () => void
   clearQuestion: () => void
   clearPermission: () => void
@@ -39,10 +43,13 @@ export function useSessionState(
 ): UseSessionStateResult {
   const [session, setSession] = useState(initialSession)
   const [messages, setMessages] = useState(initialMessages)
-  const [isLoading, setIsLoading] = useState(false)
+  // Initialize isLoading from session status so navigating to a running
+  // session immediately shows the loading indicator instead of blank silence.
+  const [isLoading, setIsLoading] = useState(BUSY_STATUSES.has(initialSession.status))
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingMessage, setStreamingMessage] = useState<AgentMessage | null>(null)
   const [pendingMessages, setPendingMessages] = useState<string[]>([])
+  const [optimisticPendingMessages, setOptimisticPendingMessages] = useState<string[]>([])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [questionRequest, setQuestionRequest] = useState<QuestionRequest | null>(null)
   const [permissionRequest, setPermissionRequest] = useState<PermissionRequest | null>(null)
@@ -120,8 +127,35 @@ export function useSessionState(
       const event: SessionStreamingEvent = payload.event
       if ('pendingMessages' in event) {
         setPendingMessages(event.pendingMessages)
+        // Server is authoritative — clear only the optimistic entries it now
+        // includes, preserving duplicate queued texts if the server has only
+        // acknowledged some of them so far.
+        setOptimisticPendingMessages((prev) => {
+          if (prev.length === 0) return prev
+
+          const acknowledgedCounts = new Map<string, number>()
+          for (const text of event.pendingMessages) {
+            acknowledgedCounts.set(text, (acknowledgedCounts.get(text) ?? 0) + 1)
+          }
+
+          const remaining: string[] = []
+          for (const text of prev) {
+            const count = acknowledgedCounts.get(text) ?? 0
+            if (count > 0) {
+              acknowledgedCounts.set(text, count - 1)
+            } else {
+              remaining.push(text)
+            }
+          }
+
+          return remaining.length === prev.length ? prev : remaining
+        })
       }
       switch (event.type) {
+        case 'stream_start':
+          // Agent turn started — show loading before first token arrives.
+          setIsLoading(true)
+          break
         case 'message_update':
           pendingClear = false
           pendingEnd = false
@@ -142,6 +176,7 @@ export function useSessionState(
         case 'agent_end':
           pendingClear = false
           pendingEnd = true
+          setOptimisticPendingMessages([])
           // Fallback: if onAgentMessages doesn't arrive within 300ms, force clear
           endTimeoutId = setTimeout(() => {
             endTimeoutId = null
@@ -159,6 +194,7 @@ export function useSessionState(
           setIsLoading(false)
           setIsStreaming(false)
           setStreamingMessage(null)
+          setOptimisticPendingMessages([])
           setErrorMessage(event.message)
           break
       }
@@ -198,6 +234,10 @@ export function useSessionState(
     setErrorMessage(null)
   }, [])
 
+  const addOptimisticPending = useCallback((text: string): void => {
+    setOptimisticPendingMessages((prev) => [...prev, text])
+  }, [])
+
   const clearError = useCallback((): void => {
     setErrorMessage(null)
   }, [])
@@ -210,17 +250,24 @@ export function useSessionState(
     setPermissionRequest(null)
   }, [])
 
+  // Merge server-authoritative pending messages with local optimistic ones
+  const effectivePendingMessages =
+    optimisticPendingMessages.length > 0
+      ? [...pendingMessages, ...optimisticPendingMessages]
+      : pendingMessages
+
   return {
     session,
     messages,
     isLoading,
     isStreaming,
     streamingMessage,
-    pendingMessages,
+    pendingMessages: effectivePendingMessages,
     errorMessage,
     questionRequest,
     permissionRequest,
     setLoading,
+    addOptimisticPending,
     clearError,
     clearQuestion,
     clearPermission
