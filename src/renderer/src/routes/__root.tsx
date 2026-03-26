@@ -18,6 +18,8 @@ import {
   createSession,
   DEFAULT_AGENT,
   DEFAULT_MODEL,
+  getPendingPermission,
+  getPendingQuestion,
   NEW_SESSION_TITLE,
   onPermissionEvent,
   onQuestionEvent,
@@ -44,6 +46,131 @@ import {
   markSessionVisited
 } from '@/lib/session-sidebar'
 
+type PendingSessionPayload<Request> = {
+  sessionId: string
+  request: Request | null
+}
+
+function setsEqual<T>(left: Set<T>, right: Set<T>): boolean {
+  if (left.size !== right.size) {
+    return false
+  }
+
+  for (const value of left) {
+    if (!right.has(value)) {
+      return false
+    }
+  }
+
+  return true
+}
+
+function usePendingSessionIds<Request>(
+  sessionIds: string[],
+  subscribe: (listener: (payload: PendingSessionPayload<Request>) => void) => () => void,
+  getPending: (sessionId: string) => Promise<Request | null>
+): Set<string> {
+  const [pendingSessionIds, setPendingSessionIds] = useState<Set<string>>(new Set())
+  const versionBySessionIdRef = useRef(new Map<string, number>())
+
+  useEffect(() => {
+    return subscribe((payload) => {
+      const nextVersion = (versionBySessionIdRef.current.get(payload.sessionId) ?? 0) + 1
+      versionBySessionIdRef.current.set(payload.sessionId, nextVersion)
+
+      setPendingSessionIds((prev) => {
+        const hasSessionId = prev.has(payload.sessionId)
+
+        if (payload.request) {
+          if (hasSessionId) {
+            return prev
+          }
+
+          const next = new Set(prev)
+          next.add(payload.sessionId)
+          return next
+        }
+
+        if (!hasSessionId) {
+          return prev
+        }
+
+        const next = new Set(prev)
+        next.delete(payload.sessionId)
+        return next
+      })
+    })
+  }, [subscribe])
+
+  useEffect(() => {
+    const activeSessionIds = new Set(sessionIds)
+
+    if (sessionIds.length === 0) {
+      return
+    }
+
+    let cancelled = false
+
+    void Promise.all(
+      sessionIds.map(async (sessionId) => {
+        const version = versionBySessionIdRef.current.get(sessionId) ?? 0
+        return {
+          sessionId,
+          request: await getPending(sessionId),
+          version
+        }
+      })
+    )
+      .then((results) => {
+        if (cancelled) return
+
+        setPendingSessionIds((prev) => {
+          const next = new Set<string>()
+          for (const sessionId of prev) {
+            if (activeSessionIds.has(sessionId)) {
+              next.add(sessionId)
+            }
+          }
+
+          for (const result of results) {
+            const currentVersion = versionBySessionIdRef.current.get(result.sessionId) ?? 0
+            if (currentVersion !== result.version) {
+              continue
+            }
+
+            if (result.request) {
+              next.add(result.sessionId)
+            } else {
+              next.delete(result.sessionId)
+            }
+          }
+
+          return setsEqual(prev, next) ? prev : next
+        })
+      })
+      .catch(() => {
+        // Ignore hydration failures and keep listening to live events.
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [getPending, sessionIds])
+
+  return useMemo(() => {
+    const activeSessionIds = new Set(sessionIds)
+    const filtered = new Set<string>()
+
+    for (const sessionId of pendingSessionIds) {
+      if (activeSessionIds.has(sessionId)) {
+        filtered.add(sessionId)
+      }
+    }
+
+    return setsEqual(pendingSessionIds, filtered) ? pendingSessionIds : filtered
+  }, [pendingSessionIds, sessionIds])
+}
+
 function RootComponent(): React.JSX.Element {
   const router = useRouter()
   const navigate = useNavigate()
@@ -67,37 +194,23 @@ function RootComponent(): React.JSX.Element {
     markSessionVisited(loadSessionVisitedAt(), activeSessionId)
   }, [activeSessionId, activeSession?.updatedAt])
 
-  // Track sessions with pending questions globally for sidebar indicators
-  const [questionSessionIds, setQuestionSessionIds] = useState<Set<string>>(new Set())
-  useEffect(() => {
-    return onQuestionEvent((payload) => {
-      setQuestionSessionIds((prev) => {
-        const next = new Set(prev)
-        if (payload.request) {
-          next.add(payload.sessionId)
-        } else {
-          next.delete(payload.sessionId)
-        }
-        return next
-      })
-    })
-  }, [])
+  const sidebarSessionIds = useMemo(
+    () => workspace.sessions.filter((session) => !session.archived).map((session) => session.id),
+    [workspace.sessions]
+  )
 
-  // Track sessions with pending permission requests for sidebar indicators
-  const [permissionSessionIds, setPermissionSessionIds] = useState<Set<string>>(new Set())
-  useEffect(() => {
-    return onPermissionEvent((payload) => {
-      setPermissionSessionIds((prev) => {
-        const next = new Set(prev)
-        if (payload.request) {
-          next.add(payload.sessionId)
-        } else {
-          next.delete(payload.sessionId)
-        }
-        return next
-      })
-    })
-  }, [])
+  // Track sessions with pending questions/permissions globally for sidebar indicators,
+  // including requests that were already pending before the renderer subscribed.
+  const questionSessionIds = usePendingSessionIds(
+    sidebarSessionIds,
+    onQuestionEvent,
+    getPendingQuestion
+  )
+  const permissionSessionIds = usePendingSessionIds(
+    sidebarSessionIds,
+    onPermissionEvent,
+    getPendingPermission
+  )
 
   const unreadSessionIds = useMemo(() => {
     return new Set<string>(
@@ -128,23 +241,26 @@ function RootComponent(): React.JSX.Element {
     await router.invalidate()
   }
 
-  async function handleCreateSession(
-    project: Project,
-    options?: { branch?: string | null; worktreePath?: string | null }
-  ): Promise<void> {
-    const session = await createSession({
-      title: options?.branch ?? NEW_SESSION_TITLE,
-      repoPath: project.repoPath,
-      taskInstruction: '',
-      agent: DEFAULT_AGENT,
-      model: DEFAULT_MODEL,
-      branch: options?.branch ?? null,
-      worktreePath: options?.worktreePath ?? null
-    })
+  const handleCreateSession = useCallback(
+    async (
+      project: Project,
+      options?: { branch?: string | null; worktreePath?: string | null }
+    ): Promise<void> => {
+      const session = await createSession({
+        title: options?.branch ?? NEW_SESSION_TITLE,
+        repoPath: project.repoPath,
+        taskInstruction: '',
+        agent: DEFAULT_AGENT,
+        model: DEFAULT_MODEL,
+        branch: options?.branch ?? null,
+        worktreePath: options?.worktreePath ?? null
+      })
 
-    await router.invalidate()
-    await navigate({ to: '/sessions/$sessionId/overview', params: { sessionId: session.id } })
-  }
+      await router.invalidate()
+      await navigate({ to: '/sessions/$sessionId/overview', params: { sessionId: session.id } })
+    },
+    [navigate, router]
+  )
 
   // --- Worktree archive alert dialog state ---
   const [worktreeArchiveDialog, setWorktreeArchiveDialog] = useState<{
@@ -213,7 +329,7 @@ function RootComponent(): React.JSX.Element {
     useCallback(() => {
       const project = activeProject ?? firstProject
       if (project) void handleCreateSession(project)
-    }, [activeProject, firstProject]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [activeProject, firstProject, handleCreateSession])
   )
 
   useHotkey(
