@@ -35,7 +35,7 @@ import {
   rejectAllPermissionsForSession,
   setCurrentPermissionSessionId
 } from './tools/permission'
-import type { PermissionMode } from '../../shared/session'
+import type { PermissionMode } from '@pi-code/shared/session'
 import { webFetchTool } from './tools/webfetch'
 import {
   askUserQuestionTool,

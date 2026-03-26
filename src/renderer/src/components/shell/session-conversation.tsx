@@ -303,7 +303,11 @@ export function SessionConversation(props: {
           {props.permissionRequest && (
             <div className="absolute inset-x-0 bottom-0 z-10 px-3 pb-3 sm:px-5">
               <div className="mx-auto w-full max-w-3xl">
-                <PermissionDock request={props.permissionRequest} onDone={props.onPermissionDone} />
+                <PermissionDock
+                  key={props.permissionRequest.id}
+                  request={props.permissionRequest}
+                  onDone={props.onPermissionDone}
+                />
               </div>
             </div>
           )}
