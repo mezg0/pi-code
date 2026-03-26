@@ -4,6 +4,9 @@ import type {
   GitBranch,
   GitPRStatus,
   ModelInfo,
+  PermissionMode,
+  PermissionRequest,
+  PermissionResponse,
   Project,
   QuestionAnswer,
   QuestionRequest,
@@ -11,6 +14,8 @@ import type {
   Session,
   SessionImageInput,
   SessionMessagesPayload,
+  SessionPermissionModePayload,
+  SessionPermissionPayload,
   SessionPlanModePayload,
   SessionQuestionPayload,
   SessionStatus,
@@ -26,6 +31,9 @@ export type {
   GitBranch,
   GitPRStatus,
   ModelInfo,
+  PermissionMode,
+  PermissionRequest,
+  PermissionResponse,
   Project,
   QuestionAnswer,
   QuestionRequest,
@@ -33,6 +41,8 @@ export type {
   Session,
   SessionImageInput,
   SessionMessagesPayload,
+  SessionPermissionModePayload,
+  SessionPermissionPayload,
   SessionPlanModePayload,
   SessionQuestionPayload,
   SessionStatus,
@@ -92,3 +102,23 @@ export const questionReject = (requestId: string): Promise<boolean> =>
 export const onQuestionEvent = (
   listener: (payload: SessionQuestionPayload) => void
 ): (() => void) => api.sessions.onQuestion(listener)
+
+// ── Permission helpers ──────────────────────────────────────────────
+
+export const getPendingPermission = (sessionId: string): Promise<PermissionRequest | null> =>
+  api.sessions.getPendingPermission(sessionId)
+export const permissionReply = (
+  requestId: string,
+  response: PermissionResponse,
+  message?: string
+): Promise<boolean> => api.sessions.permissionReply(requestId, response, message)
+export const getPermissionMode = (sessionId: string): Promise<PermissionMode> =>
+  api.sessions.getPermissionMode(sessionId)
+export const setPermissionMode = (sessionId: string, mode: PermissionMode): Promise<boolean> =>
+  api.sessions.setPermissionMode(sessionId, mode)
+export const onPermissionEvent = (
+  listener: (payload: SessionPermissionPayload) => void
+): (() => void) => api.sessions.onPermission(listener)
+export const onPermissionModeEvent = (
+  listener: (payload: SessionPermissionModePayload) => void
+): (() => void) => api.sessions.onPermissionMode(listener)

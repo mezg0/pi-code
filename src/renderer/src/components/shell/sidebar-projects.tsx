@@ -15,6 +15,7 @@ import {
   LoaderIcon,
   PlusIcon,
   Settings2Icon,
+  ShieldAlertIcon,
   Trash2Icon
 } from 'lucide-react'
 
@@ -73,6 +74,7 @@ export function SidebarProjects({
   activeSession,
   unreadSessionIds,
   questionSessionIds,
+  permissionSessionIds,
   prStatusMap,
   onAddProject,
   onRemoveProject,
@@ -83,6 +85,7 @@ export function SidebarProjects({
   activeSession: Session | null
   unreadSessionIds: Set<string>
   questionSessionIds: Set<string>
+  permissionSessionIds: Set<string>
   prStatusMap: Map<string, GitPRStatus>
   onAddProject: () => Promise<void>
   onRemoveProject: (project: Project) => Promise<void>
@@ -146,6 +149,7 @@ export function SidebarProjects({
                             isActive={session.id === activeSession?.id}
                             isUnread={unreadSessionIds.has(session.id)}
                             hasQuestion={questionSessionIds.has(session.id)}
+                            hasPermission={permissionSessionIds.has(session.id)}
                             prStatus={prStatusMap.get(session.id)}
                             onToggleArchiveSession={onToggleArchiveSession}
                           />
@@ -475,6 +479,7 @@ function SessionMenuEntry({
   isActive,
   isUnread,
   hasQuestion,
+  hasPermission,
   prStatus,
   onToggleArchiveSession
 }: {
@@ -482,6 +487,7 @@ function SessionMenuEntry({
   isActive: boolean
   isUnread: boolean
   hasQuestion: boolean
+  hasPermission: boolean
   prStatus?: GitPRStatus
   onToggleArchiveSession: (session: Session, archived: boolean) => Promise<void>
 }): React.JSX.Element {
@@ -512,7 +518,9 @@ function SessionMenuEntry({
           tabIndex={isArchiving ? -1 : undefined}
           aria-disabled={isArchiving}
         >
-          {hasQuestion ? (
+          {hasPermission ? (
+            <ShieldAlertIcon className="!size-3 text-orange-500" />
+          ) : hasQuestion ? (
             <CircleIcon className="!size-1.5 fill-amber-500 text-amber-500" />
           ) : isBusy ? (
             <LoaderCircleIcon className="size-3 animate-spin text-muted-foreground" />

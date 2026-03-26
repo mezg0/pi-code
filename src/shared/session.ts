@@ -116,6 +116,32 @@ export type SessionQuestionPayload = {
   request: QuestionRequest | null
 }
 
+// ── Permission types ─────────────────────────────────────────────────
+
+export type PermissionMode = 'ask' | 'auto' | 'strict'
+
+export type PermissionRequest = {
+  id: string
+  sessionId: string
+  toolName: string
+  toolCallId: string
+  description: string
+  input: Record<string, unknown>
+  patterns: string[]
+}
+
+export type PermissionResponse = 'once' | 'always' | 'reject'
+
+export type SessionPermissionPayload = {
+  sessionId: string
+  request: PermissionRequest | null
+}
+
+export type SessionPermissionModePayload = {
+  sessionId: string
+  mode: PermissionMode
+}
+
 export type RpcModel = {
   provider: string
   id: string
@@ -286,6 +312,16 @@ export type SessionApi = {
     questionReply(requestId: string, answers: QuestionAnswer[]): Promise<boolean>
     questionReject(requestId: string): Promise<boolean>
     onQuestion(listener: (payload: SessionQuestionPayload) => void): () => void
+    getPendingPermission(sessionId: string): Promise<PermissionRequest | null>
+    permissionReply(
+      requestId: string,
+      response: PermissionResponse,
+      message?: string
+    ): Promise<boolean>
+    getPermissionMode(sessionId: string): Promise<PermissionMode>
+    setPermissionMode(sessionId: string, mode: PermissionMode): Promise<boolean>
+    onPermission(listener: (payload: SessionPermissionPayload) => void): () => void
+    onPermissionMode(listener: (payload: SessionPermissionModePayload) => void): () => void
   }
 }
 

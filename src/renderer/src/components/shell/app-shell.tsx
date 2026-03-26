@@ -52,6 +52,7 @@ export function AppShell({
   activeSession,
   unreadSessionIds,
   questionSessionIds,
+  permissionSessionIds,
   title,
   children,
   showPanelToggle,
@@ -65,6 +66,7 @@ export function AppShell({
   activeSession: Session | null
   unreadSessionIds: Set<string>
   questionSessionIds: Set<string>
+  permissionSessionIds: Set<string>
   title: string
   children: ReactNode
   showPanelToggle: boolean
@@ -156,6 +158,7 @@ export function AppShell({
         activeSession={activeSession}
         unreadSessionIds={unreadSessionIds}
         questionSessionIds={questionSessionIds}
+        permissionSessionIds={permissionSessionIds}
         prStatusMap={prStatusMap}
         onAddProject={onAddProject}
         onRemoveProject={onRemoveProject}
