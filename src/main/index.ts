@@ -92,9 +92,12 @@ app.whenReady().then(() => {
   registerFilesIpc()
   registerGitIpc()
 
+  const webRoot = join(__dirname, '../web')
   void createServer({
-    hostname: process.env.PI_SERVER_HOST ?? '127.0.0.1',
-    port: Number(process.env.PI_SERVER_PORT ?? '4310')
+    hostname: process.env.PI_SERVER_HOST ?? '0.0.0.0',
+    port: Number(process.env.PI_SERVER_PORT ?? '4310'),
+    webRoot,
+    devProxy: is.dev && process.env.ELECTRON_RENDERER_URL ? process.env.ELECTRON_RENDERER_URL : undefined
   })
     .then((server) => {
       sidecarServer = server

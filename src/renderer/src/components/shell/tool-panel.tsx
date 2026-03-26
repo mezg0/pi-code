@@ -3,6 +3,7 @@ import {
   CodeIcon,
   FileTextIcon,
   FolderGit2Icon,
+  GitCommitHorizontalIcon,
   MonitorIcon,
   SquareTerminalIcon,
   XIcon
@@ -65,6 +66,8 @@ const TOOL_TABS: ToolTabConfig[] = [
   }
 ]
 
+const MOBILE_HIDDEN_TABS = new Set<ToolTab>(['files', 'terminal', 'browser'])
+
 export function ToolPanel({
   activeTab,
   onSelect,
@@ -72,7 +75,10 @@ export function ToolPanel({
   cwd,
   sessionId,
   hasPlan,
-  onDismissPlan
+  onDismissPlan,
+  mobile,
+  onCommit,
+  hasChanges
 }: {
   activeTab: ToolTab
   onSelect: (tab: ToolTab) => void
@@ -81,8 +87,15 @@ export function ToolPanel({
   sessionId?: string
   hasPlan: boolean
   onDismissPlan?: () => void
+  mobile?: boolean
+  onCommit?: () => void
+  hasChanges?: boolean
 }): React.JSX.Element {
-  const visibleTabs = TOOL_TABS.filter((tab) => hasPlan || tab.key !== 'plan')
+  const visibleTabs = TOOL_TABS.filter((tab) => {
+    if (!hasPlan && tab.key === 'plan') return false
+    if (mobile && MOBILE_HIDDEN_TABS.has(tab.key)) return false
+    return true
+  })
   const activeConfig = visibleTabs.find((tab) => tab.key === activeTab) ?? visibleTabs[0]!
 
   // Track all project paths that have been visited so we can keep their
@@ -100,7 +113,7 @@ export function ToolPanel({
 
   return (
     <div className="flex h-full min-w-0 flex-col overflow-hidden border-l border-border">
-      <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-2">
+      <div className="flex h-11 shrink-0 items-center justify-between border-b border-border px-4 md:h-10 md:px-2">
         <div className="flex items-center gap-0.5">
           {visibleTabs.map((tab) => {
             const Icon = tab.icon
@@ -124,9 +137,22 @@ export function ToolPanel({
             )
           })}
         </div>
-        <Button variant="ghost" size="icon-xs" onClick={onClose}>
-          <XIcon />
-        </Button>
+        <div className="flex items-center gap-1">
+          {mobile && activeTab === 'git' && onCommit ? (
+            <Button
+              variant="outline"
+              size="xs"
+              disabled={!hasChanges}
+              onClick={onCommit}
+            >
+              <GitCommitHorizontalIcon data-icon="inline-start" />
+              Commit
+            </Button>
+          ) : null}
+          <Button variant="ghost" size="icon-xs" onClick={onClose}>
+            <XIcon />
+          </Button>
+        </div>
       </div>
       <div className="relative min-w-0 flex-1 overflow-hidden">
         {/* All tabs stay mounted, hidden when not active */}
@@ -146,8 +172,10 @@ export function ToolPanel({
           </div>
         )}
         {/* Render one TerminalView and BrowserView per visited project so they
-            stay alive across project switches (no webview reload / terminal reset). */}
-        {visitedCwds.map((projectCwd) => (
+            stay alive across project switches (no webview reload / terminal reset).
+            Skip on mobile since these tabs are hidden and xterm's helper textarea
+            can steal focus and trigger the iOS keyboard. */}
+        {!mobile && visitedCwds.map((projectCwd) => (
           <div
             key={`term:${projectCwd}`}
             className={
@@ -159,7 +187,7 @@ export function ToolPanel({
             <TerminalView id={`term:${projectCwd}`} cwd={projectCwd} />
           </div>
         ))}
-        {visitedCwds.map((projectCwd) => (
+        {!mobile && visitedCwds.map((projectCwd) => (
           <div
             key={`browser:${projectCwd}`}
             className={

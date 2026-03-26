@@ -13,12 +13,16 @@ export type PiServer = {
 
 export async function createServer({
   port = 0,
-  hostname = '127.0.0.1'
+  hostname = '127.0.0.1',
+  webRoot,
+  devProxy
 }: {
   port?: number
   hostname?: string
+  webRoot?: string
+  devProxy?: string
 } = {}): Promise<PiServer> {
-  const app = createApp()
+  const app = createApp({ webRoot, devProxy })
 
   const server = serve({
     fetch: app.fetch,
