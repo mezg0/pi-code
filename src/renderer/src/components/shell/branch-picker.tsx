@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { GitBranchIcon, ChevronsUpDownIcon, PlusIcon, LoaderIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -11,101 +12,84 @@ import {
   CommandList,
   CommandSeparator
 } from '@/components/ui/command'
-import {
-  checkoutGitBranch,
-  createGitBranch,
-  listGitBranches
-} from '@/lib/git'
+import { checkoutGitBranch, createGitBranch, listGitBranches } from '@/lib/git'
+import { invalidateGitCwd } from '@/lib/git-query'
+import { gitKeys } from '@/lib/query-keys'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import type { GitBranch } from '@pi-code/shared/session'
 
 export function BranchPicker({
   cwd,
   currentBranch,
-  disabled,
-  onBranchChanged
+  disabled
 }: {
   cwd: string
   currentBranch: string
   disabled: boolean
-  onBranchChanged: () => void
 }): React.JSX.Element {
+  const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
-  const [branches, setBranches] = useState<GitBranch[]>([])
-  const [loading, setLoading] = useState(false)
-  const [switching, setSwitching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
-  const fetchBranches = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const result = await listGitBranches(cwd)
-      setBranches(result.filter((b) => !b.isRemote))
-    } catch (err) {
-      console.error('Failed to list branches:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [cwd])
+  const branchesQuery = useQuery({
+    queryKey: gitKeys.branches(cwd),
+    queryFn: () => listGitBranches(cwd),
+    enabled: open,
+    staleTime: 30_000,
+    select: (result) => result.filter((branch) => !branch.isRemote)
+  })
 
-  // Fetch branches when popover opens
-  useEffect(() => {
-    if (open) {
-      setSearch('')
+  const checkoutMutation = useMutation({
+    mutationFn: (branchName: string) => checkoutGitBranch(cwd, branchName),
+    onSuccess: async (result) => {
+      if (!result.success) {
+        setError(result.error || 'Failed to switch branch')
+        return
+      }
       setError(null)
-      fetchBranches()
+      setOpen(false)
+      await invalidateGitCwd(queryClient, cwd)
+      await queryClient.invalidateQueries({ queryKey: ['git', 'fileContents', cwd] })
     }
-  }, [open, fetchBranches])
+  })
+
+  const createMutation = useMutation({
+    mutationFn: (branchName: string) => createGitBranch(cwd, branchName),
+    onSuccess: async (result) => {
+      if (!result.success) {
+        setError(result.error || 'Failed to create branch')
+        return
+      }
+      setError(null)
+      setOpen(false)
+      await invalidateGitCwd(queryClient, cwd)
+      await queryClient.invalidateQueries({ queryKey: ['git', 'fileContents', cwd] })
+    }
+  })
+
+  const branches = branchesQuery.data ?? []
+  const switching = checkoutMutation.isPending || createMutation.isPending
+
+  const trimmedSearch = search.trim()
+  const exactMatch = branches.some((branch) => branch.name === trimmedSearch)
+  const showCreate =
+    trimmedSearch.length > 0 && !exactMatch && /^[^\s~^:?*[\]\\]+$/.test(trimmedSearch)
 
   async function handleSelect(branchName: string): Promise<void> {
     if (branchName === currentBranch) {
       setOpen(false)
       return
     }
-    setSwitching(true)
     setError(null)
-    try {
-      const result = await checkoutGitBranch(cwd, branchName)
-      if (result.success) {
-        setOpen(false)
-        onBranchChanged()
-      } else {
-        setError(result.error || 'Failed to switch branch')
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to switch branch')
-    } finally {
-      setSwitching(false)
-    }
+    await checkoutMutation.mutateAsync(branchName)
   }
 
   async function handleCreate(branchName: string): Promise<void> {
-    setSwitching(true)
     setError(null)
-    try {
-      const result = await createGitBranch(cwd, branchName)
-      if (result.success) {
-        setOpen(false)
-        onBranchChanged()
-      } else {
-        setError(result.error || 'Failed to create branch')
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create branch')
-    } finally {
-      setSwitching(false)
-    }
+    await createMutation.mutateAsync(branchName)
   }
-
-  // Show "create branch" option when search doesn't match any existing branch exactly
-  const trimmedSearch = search.trim()
-  const exactMatch = branches.some((b) => b.name === trimmedSearch)
-  const showCreate =
-    trimmedSearch.length > 0 && !exactMatch && /^[^\s~^:?*[\]\\]+$/.test(trimmedSearch)
 
   const trigger = (
     <PopoverTrigger asChild>
@@ -123,7 +107,16 @@ export function BranchPicker({
   )
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+        if (nextOpen) {
+          setSearch('')
+          setError(null)
+        }
+      }}
+    >
       {disabled ? (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -143,7 +136,7 @@ export function BranchPicker({
             onValueChange={setSearch}
           />
           <CommandList>
-            {loading ? (
+            {branchesQuery.isPending ? (
               <div className="flex items-center justify-center py-6">
                 <LoaderIcon className="size-4 animate-spin text-muted-foreground" />
               </div>
@@ -154,7 +147,7 @@ export function BranchPicker({
                 {showCreate && (
                   <CommandGroup>
                     <CommandItem
-                      onSelect={() => handleCreate(trimmedSearch)}
+                      onSelect={() => void handleCreate(trimmedSearch)}
                       disabled={switching}
                     >
                       <PlusIcon className="size-3.5 text-muted-foreground" />
@@ -173,7 +166,7 @@ export function BranchPicker({
                       <CommandItem
                         key={branch.name}
                         value={branch.name}
-                        onSelect={() => handleSelect(branch.name)}
+                        onSelect={() => void handleSelect(branch.name)}
                         disabled={switching}
                         data-checked={branch.isCurrent}
                       >
@@ -197,14 +190,10 @@ export function BranchPicker({
             )}
           </CommandList>
 
-          {/* Error display */}
           {error && (
-            <div className="border-t border-border px-3 py-2 text-xs text-destructive">
-              {error}
-            </div>
+            <div className="border-t border-border px-3 py-2 text-xs text-destructive">{error}</div>
           )}
 
-          {/* Loading overlay during switch */}
           {switching && (
             <div className="absolute inset-0 flex items-center justify-center bg-popover/80">
               <LoaderIcon className="size-4 animate-spin text-muted-foreground" />

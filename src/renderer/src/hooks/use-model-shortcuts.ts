@@ -1,19 +1,14 @@
 import { useCallback } from 'react'
 import { useHotkey } from '@tanstack/react-hotkeys'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { loadModelShortcuts } from '@/lib/model-shortcuts'
+import { sessionKeys } from '@/lib/query-keys'
 import { setSessionModel, setSessionThinking } from '@/lib/sessions'
 import { SHORTCUTS } from '@/lib/shortcuts'
 
-/** Custom event name dispatched after a model shortcut is applied. */
-export const MODEL_SHORTCUT_APPLIED_EVENT = 'pi:model-shortcut-applied'
-
-/**
- * Register Mod+Shift+1 through Mod+Shift+9 hotkeys that switch the active
- * session's model (and optionally thinking level) based on user-configured
- * model shortcuts stored in localStorage.
- */
 export function useModelShortcuts(sessionId: string | undefined): void {
+  const queryClient = useQueryClient()
   const enabled = Boolean(sessionId)
 
   const applyShortcut = useCallback(
@@ -28,15 +23,16 @@ export function useModelShortcuts(sessionId: string | undefined): void {
           await setSessionThinking(sessionId, shortcut.thinkingLevel)
         }
         if (ok) {
-          window.dispatchEvent(new CustomEvent(MODEL_SHORTCUT_APPLIED_EVENT))
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: sessionKeys.runtimeState(sessionId) }),
+            queryClient.invalidateQueries({ queryKey: sessionKeys.availableModels(sessionId) })
+          ])
         }
       })()
     },
-    [sessionId]
+    [queryClient, sessionId]
   )
 
-  // Each useHotkey call below corresponds to a fixed slot (1–9).
-  // The hooks are always called in the same order.
   const cb1 = useCallback(() => applyShortcut('1'), [applyShortcut])
   const cb2 = useCallback(() => applyShortcut('2'), [applyShortcut])
   const cb3 = useCallback(() => applyShortcut('3'), [applyShortcut])

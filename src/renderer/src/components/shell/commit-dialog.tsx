@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   GitBranchIcon,
   GitCommitHorizontalIcon,
@@ -24,10 +25,11 @@ import {
   getGitStatus,
   pushGitChanges
 } from '@/lib/git'
+import { invalidateGitCwd } from '@/lib/git-query'
+import { gitKeys } from '@/lib/query-keys'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { sendSessionMessage } from '@/lib/sessions'
-import type { GitStatus } from '@pi-code/shared/session'
 
 type CommitAction = 'commit' | 'commit-push' | 'commit-pr'
 
@@ -42,8 +44,7 @@ export function CommitDialog({
   cwd: string | undefined
   sessionId?: string
 }): React.JSX.Element {
-  const [status, setStatus] = useState<GitStatus | null>(null)
-  const [loading, setLoading] = useState(false)
+  const queryClient = useQueryClient()
   const [commitMessage, setCommitMessage] = useState('')
   const [includeUnstaged, setIncludeUnstaged] = useState(true)
   const [selectedAction, setSelectedAction] = useState<CommitAction>('commit')
@@ -51,27 +52,33 @@ export function CommitDialog({
   const [executing, setExecuting] = useState(false)
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
 
-  const fetchStatus = useCallback(async () => {
-    if (!cwd) return
-    setLoading(true)
-    try {
-      const s = await getGitStatus(cwd)
-      setStatus(s)
-    } catch (err) {
-      console.error('Failed to get git status:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [cwd])
+  const statusQuery = useQuery({
+    queryKey: cwd ? gitKeys.status(cwd) : ['git', 'status', 'none'],
+    queryFn: () => getGitStatus(cwd!),
+    enabled: open && Boolean(cwd),
+    staleTime: 0,
+    gcTime: 15 * 60_000
+  })
+
+  const status = statusQuery.data ?? null
+  const loading = statusQuery.isPending || (statusQuery.isFetching && !statusQuery.data)
 
   useEffect(() => {
-    if (open) {
-      setCommitMessage('')
-      setResult(null)
-      setExecuting(false)
-      fetchStatus()
-    }
-  }, [open, fetchStatus])
+    if (!open) return
+    setCommitMessage('')
+    setResult(null)
+    setExecuting(false)
+  }, [open])
+
+  async function refreshGitQueries(): Promise<void> {
+    if (!cwd) return
+    await invalidateGitCwd(queryClient, cwd)
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['git', 'fileContents', cwd] }),
+      queryClient.invalidateQueries({ queryKey: gitKeys.status(cwd) }),
+      queryClient.invalidateQueries({ queryKey: ['git', 'prStatus'] })
+    ])
+  }
 
   async function handleContinue(): Promise<void> {
     if (!cwd || !status?.hasChanges) return
@@ -79,13 +86,11 @@ export function CommitDialog({
     setResult(null)
 
     try {
-      // Generate message if blank
       let message = commitMessage.trim()
       if (!message) {
         message = await generateGitCommitMessage(cwd)
       }
 
-      // Dispatch "commit-pr" to the agent session if one is active
       if (selectedAction === 'commit-pr' && sessionId) {
         const branch = status.branch || 'HEAD'
         const title = message.split('\n')[0]
@@ -109,20 +114,16 @@ export function CommitDialog({
         ].join('\n')
 
         onOpenChange(false)
-        // Fire-and-forget: sendSessionMessage awaits the full agent run,
-        // so we must not block on it — the dialog should close immediately.
         sendSessionMessage(sessionId, agentMessage)
         return
       }
 
-      // Step 1: Commit
       const commitResult = await commitGitChanges(cwd, message, includeUnstaged)
       if (!commitResult.success) {
         setResult({ success: false, message: commitResult.error || 'Commit failed' })
         return
       }
 
-      // Step 2: Push (if needed)
       if (selectedAction === 'commit-push' || selectedAction === 'commit-pr') {
         const pushResult = await pushGitChanges(cwd)
         if (!pushResult.success) {
@@ -130,11 +131,11 @@ export function CommitDialog({
             success: false,
             message: `Committed but push failed: ${pushResult.error}`
           })
+          await refreshGitQueries()
           return
         }
       }
 
-      // Step 3: Create PR — fallback when no agent session is available
       if (selectedAction === 'commit-pr') {
         const prResult = await createGitPullRequest(cwd, message.split('\n')[0], isDraft)
         if (!prResult.success) {
@@ -142,6 +143,7 @@ export function CommitDialog({
             success: false,
             message: `Committed and pushed but PR creation failed: ${prResult.error}`
           })
+          await refreshGitQueries()
           return
         }
         setResult({ success: true, message: prResult.message || 'PR created successfully' })
@@ -151,8 +153,8 @@ export function CommitDialog({
         setResult({ success: true, message: 'Committed successfully' })
       }
 
-      // Refresh status after successful commit
-      await fetchStatus()
+      await refreshGitQueries()
+      await statusQuery.refetch()
     } catch (err) {
       setResult({
         success: false,
@@ -185,7 +187,7 @@ export function CommitDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <div className="flex items-center gap-2 text-muted-foreground mb-1">
+          <div className="mb-1 flex items-center gap-2 text-muted-foreground">
             <GitCommitHorizontalIcon className="size-4" />
           </div>
           <DialogTitle className="text-lg">Commit your changes</DialogTitle>
@@ -197,17 +199,16 @@ export function CommitDialog({
           </div>
         ) : status ? (
           <div className="flex flex-col gap-4">
-            {/* Branch & Changes info */}
             <div className="flex flex-col gap-2 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground font-medium">Branch</span>
+                <span className="font-medium text-muted-foreground">Branch</span>
                 <span className="flex items-center gap-1.5 font-mono text-xs">
                   <GitBranchIcon className="size-3.5 text-muted-foreground" />
                   {status.branch}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground font-medium">Changes</span>
+                <span className="font-medium text-muted-foreground">Changes</span>
                 <span className="flex items-center gap-2 font-mono text-xs">
                   <span>
                     {status.filesChanged} file{status.filesChanged !== 1 ? 's' : ''}
@@ -222,13 +223,11 @@ export function CommitDialog({
               </div>
             </div>
 
-            {/* Include unstaged toggle */}
             <label className="flex items-center gap-2.5 text-sm">
               <Switch checked={includeUnstaged} onCheckedChange={setIncludeUnstaged} />
               <span>Include unstaged</span>
             </label>
 
-            {/* Commit message */}
             <div className="flex flex-col gap-1.5">
               <span className="text-sm font-medium">Commit message</span>
               <Textarea
@@ -240,7 +239,6 @@ export function CommitDialog({
               />
             </div>
 
-            {/* Next steps */}
             <div className="flex flex-col gap-1">
               <span className="text-sm font-medium text-muted-foreground">Next steps</span>
               <div className="flex flex-col">
@@ -261,7 +259,6 @@ export function CommitDialog({
               </div>
             </div>
 
-            {/* Draft toggle for PR */}
             {selectedAction === 'commit-pr' && (
               <label className="flex items-center gap-2.5 text-sm">
                 <CircleDotIcon className="size-4 text-muted-foreground" />
@@ -270,7 +267,6 @@ export function CommitDialog({
               </label>
             )}
 
-            {/* Result message */}
             {result && (
               <div
                 className={`rounded-lg px-3 py-2 text-sm ${
@@ -289,7 +285,7 @@ export function CommitDialog({
 
         <DialogFooter>
           <Button
-            onClick={handleContinue}
+            onClick={() => void handleContinue()}
             disabled={executing || !status?.hasChanges}
             className="w-full sm:w-auto"
           >

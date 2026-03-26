@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { detectPlatform } from '@tanstack/hotkeys'
+import { useQuery } from '@tanstack/react-query'
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
@@ -53,14 +54,9 @@ import {
   type ModelShortcut,
   type ModelShortcutMap
 } from '@/lib/model-shortcuts'
-import {
-  getAgentState,
-  getAvailableModels,
-  listSessions,
-  updateSession,
-  type ModelInfo,
-  type Session
-} from '@/lib/sessions'
+import { listSessions, updateSession, type ModelInfo, type Session } from '@/lib/sessions'
+import { sessionKeys } from '@/lib/query-keys'
+import { useSessionAvailableModels, useSessionRuntimeState } from '@/lib/session-runtime-query'
 import {
   listAuthProviders,
   loginAuthProvider,
@@ -126,34 +122,24 @@ export function SettingsView(): React.JSX.Element {
         <aside className="flex w-52 shrink-0 flex-col gap-1 border-r border-border p-3">
           {navList}
         </aside>
-        <div className="min-w-0 flex-1 overflow-hidden">
-          {sectionContent}
-        </div>
+        <div className="min-w-0 flex-1 overflow-hidden">{sectionContent}</div>
       </div>
 
       {/* Mobile: stacked nav → content */}
       <div className="flex h-full flex-col overflow-hidden md:hidden">
         {activeSection === null ? (
-          <div className="flex flex-col gap-1 p-3">
-            {navList}
-          </div>
+          <div className="flex flex-col gap-1 p-3">{navList}</div>
         ) : (
           <>
             <div className="flex h-11 shrink-0 items-center gap-1.5 border-b border-border px-2">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setActiveSection(null)}
-              >
+              <Button variant="ghost" size="icon-sm" onClick={() => setActiveSection(null)}>
                 <ArrowLeftIcon />
               </Button>
               <span className="text-sm font-semibold">
                 {NAV_ITEMS.find((i) => i.id === activeSection)?.label}
               </span>
             </div>
-            <div className="min-w-0 flex-1 overflow-hidden">
-              {sectionContent}
-            </div>
+            <div className="min-w-0 flex-1 overflow-hidden">{sectionContent}</div>
           </>
         )}
       </div>
@@ -200,9 +186,7 @@ function ApiKeysSection(): React.JSX.Element {
       <div className="mx-auto max-w-2xl space-y-8 p-6 md:p-8">
         <div className="space-y-1">
           <h2 className="text-base font-semibold">API Keys</h2>
-          <p className="text-sm text-muted-foreground">
-            Manage authentication for AI providers.
-          </p>
+          <p className="text-sm text-muted-foreground">Manage authentication for AI providers.</p>
         </div>
 
         {/* OAuth Providers */}
@@ -235,7 +219,10 @@ function ApiKeysSection(): React.JSX.Element {
             <h3 className="text-sm font-medium">API Keys</h3>
             <p className="text-xs text-muted-foreground">
               Enter API keys for providers. Keys are stored locally in{' '}
-              <code className="rounded bg-muted px-1 py-0.5 text-[11px]">~/.pi/agent/auth.json</code>.
+              <code className="rounded bg-muted px-1 py-0.5 text-[11px]">
+                ~/.pi/agent/auth.json
+              </code>
+              .
             </p>
           </div>
           <div className="space-y-3">
@@ -297,9 +284,6 @@ function ModelShortcutKbd({
 
 function ModelShortcutsSection(): React.JSX.Element {
   const [shortcuts, setShortcuts] = useState<ModelShortcutMap>(() => loadModelShortcuts())
-  const [models, setModels] = useState<ModelInfo[]>([])
-  const [loadingModels, setLoadingModels] = useState(false)
-  const [hasSession, setHasSession] = useState(false)
 
   // The slot currently being assigned (null = none)
   const [assigningSlot, setAssigningSlot] = useState<string | null>(null)
@@ -308,40 +292,22 @@ function ModelShortcutsSection(): React.JSX.Element {
     slot: string
     model: ModelInfo
   } | null>(null)
-  // Available thinking levels from the active session
-  const [thinkingLevels, setThinkingLevels] = useState<string[]>([])
 
-  // Fetch available models from the first active (non-archived) session
-  useEffect(() => {
-    let disposed = false
-    void (async () => {
-      setLoadingModels(true)
-      try {
-        const allSessions = await listSessions()
-        const active = allSessions.find((s) => !s.archived)
-        if (!active || disposed) {
-          setHasSession(false)
-          setLoadingModels(false)
-          return
-        }
-        setHasSession(true)
-        const [available, state] = await Promise.all([
-          getAvailableModels(active.id),
-          getAgentState(active.id)
-        ])
-        if (disposed) return
-        setModels(available)
-        setThinkingLevels(state?.availableThinkingLevels ?? [])
-      } catch {
-        // Ignore
-      } finally {
-        if (!disposed) setLoadingModels(false)
-      }
-    })()
-    return () => {
-      disposed = true
-    }
-  }, [])
+  const sessionsQuery = useQuery({
+    queryKey: sessionKeys.list(),
+    queryFn: () => listSessions(),
+    staleTime: 30_000
+  })
+
+  const activeSessionId = sessionsQuery.data?.find((session) => !session.archived)?.id
+  const hasSession = Boolean(activeSessionId)
+  const availableModelsQuery = useSessionAvailableModels(activeSessionId)
+  const runtimeStateQuery = useSessionRuntimeState(activeSessionId)
+  const models = availableModelsQuery.data ?? []
+  const thinkingLevels = runtimeStateQuery.data?.availableThinkingLevels ?? []
+  const loadingModels =
+    sessionsQuery.isPending ||
+    (hasSession && (availableModelsQuery.isPending || runtimeStateQuery.isPending))
 
   function handleModelSelect(slot: string, model: ModelInfo): void {
     if (model.reasoning && thinkingLevels.length > 1) {
@@ -648,7 +614,7 @@ function RemoteAccessSection(): React.JSX.Element {
     try {
       const { disableRemoteAccess } = await import('@/lib/remote-access')
       await disableRemoteAccess()
-      setStatus((prev) => prev ? { ...prev, enabled: false, urls: [] } : prev)
+      setStatus((prev) => (prev ? { ...prev, enabled: false, urls: [] } : prev))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to disable')
     } finally {
@@ -698,7 +664,9 @@ function RemoteAccessSection(): React.JSX.Element {
         <div className="rounded-lg border border-border bg-card px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className={`flex size-8 items-center justify-center rounded-md ${isEnabled ? 'bg-emerald-500/10' : 'bg-muted'}`}>
+              <div
+                className={`flex size-8 items-center justify-center rounded-md ${isEnabled ? 'bg-emerald-500/10' : 'bg-muted'}`}
+              >
                 {isEnabled ? (
                   <GlobeIcon className="size-4 text-emerald-500" />
                 ) : (
@@ -738,8 +706,8 @@ function RemoteAccessSection(): React.JSX.Element {
             <div className="space-y-1">
               <p className="text-sm font-medium text-amber-500">No password set</p>
               <p className="text-xs text-muted-foreground">
-                Anyone on your network can access and control sessions, run commands, and read files.
-                Consider setting a password.
+                Anyone on your network can access and control sessions, run commands, and read
+                files. Consider setting a password.
               </p>
             </div>
           </div>
@@ -756,11 +724,7 @@ function RemoteAccessSection(): React.JSX.Element {
                   className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-2.5"
                 >
                   <code className="text-sm font-mono">{url}</code>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => copyToClipboard(url, url)}
-                  >
+                  <Button variant="ghost" size="icon-sm" onClick={() => copyToClipboard(url, url)}>
                     {copied === url ? (
                       <CheckCircle2Icon className="size-3.5 text-emerald-500" />
                     ) : (
@@ -780,13 +744,16 @@ function RemoteAccessSection(): React.JSX.Element {
             <div className="space-y-1">
               <h3 className="text-sm font-medium">Enable remote access</h3>
               <p className="text-xs text-muted-foreground">
-                Start a network-accessible server so you can use pi-code from your phone or another device.
+                Start a network-accessible server so you can use pi-code from your phone or another
+                device.
               </p>
             </div>
 
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium" htmlFor="remote-port">Port</label>
+                <label className="text-sm font-medium" htmlFor="remote-port">
+                  Port
+                </label>
                 <Input
                   id="remote-port"
                   type="number"
@@ -823,15 +790,15 @@ function RemoteAccessSection(): React.JSX.Element {
                         onClick={() => setShowPassword((v) => !v)}
                         type="button"
                       >
-                        {showPassword ? <EyeOffIcon className="size-3.5" /> : <EyeIcon className="size-3.5" />}
+                        {showPassword ? (
+                          <EyeOffIcon className="size-3.5" />
+                        ) : (
+                          <EyeIcon className="size-3.5" />
+                        )}
                       </Button>
                     )}
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void handleGeneratePassword()}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => void handleGeneratePassword()}>
                     <RefreshCwIcon data-icon="inline-start" />
                     Generate
                   </Button>
@@ -866,7 +833,14 @@ function RemoteAccessSection(): React.JSX.Element {
         <div className="rounded-lg border border-dashed border-border px-4 py-3 text-xs text-muted-foreground">
           <p>
             Designed for local network use. For access over the internet, use{' '}
-            <a href="https://tailscale.com" target="_blank" rel="noopener" className="underline underline-offset-2">Tailscale</a>{' '}
+            <a
+              href="https://tailscale.com"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              Tailscale
+            </a>{' '}
             or a secure tunnel.
           </p>
         </div>
@@ -965,9 +939,7 @@ function ArchivedChatsSection(): React.JSX.Element {
                         </Button>
                       </span>
                     </TooltipTrigger>
-                    <TooltipContent>
-                      Worktree sessions cannot be restored
-                    </TooltipContent>
+                    <TooltipContent>Worktree sessions cannot be restored</TooltipContent>
                   </Tooltip>
                 ) : (
                   <Button
@@ -1166,7 +1138,13 @@ function ApiKeyProviderRow({
       <div className="flex items-center gap-2">
         <Input
           type="password"
-          placeholder={hasStoredKey ? '••••••••••••' : hasEnvKey ? 'Using environment variable' : 'Enter API key'}
+          placeholder={
+            hasStoredKey
+              ? '••••••••••••'
+              : hasEnvKey
+                ? 'Using environment variable'
+                : 'Enter API key'
+          }
           value={keyInput}
           onChange={(e) => setKeyInput(e.target.value)}
           onKeyDown={(e) => {

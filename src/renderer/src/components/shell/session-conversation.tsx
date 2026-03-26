@@ -40,6 +40,7 @@ import type {
   Session,
   SessionImageInput
 } from '@/lib/sessions'
+import { clearSessionDraft, getSessionDraft, setSessionDraft } from '@/lib/session-drafts'
 import { SHORTCUTS } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 
@@ -356,7 +357,17 @@ function SessionPromptInput({
   onSend: (text: string, images?: SessionImageInput[]) => Promise<void>
   onStop: () => Promise<void>
 }): React.JSX.Element {
-  const [input, setInput] = useState('')
+  const [draftSessionId, setDraftSessionId] = useState(session.id)
+  const [input, setInput] = useState(() => getSessionDraft(session.id))
+
+  if (draftSessionId !== session.id) {
+    setDraftSessionId(session.id)
+    setInput(getSessionDraft(session.id))
+  }
+
+  useEffect(() => {
+    setSessionDraft(session.id, input)
+  }, [input, session.id])
 
   // Subscribe to react-grab element selections from the BrowserView.
   // When context is grabbed, append it to the prompt input.
@@ -390,6 +401,7 @@ function SessionPromptInput({
     (message: { text: string; files: FileUIPart[] }): void => {
       const text = message.text.trim()
       if (!text && message.files.length === 0) return
+      clearSessionDraft(session.id)
       setInput('')
 
       const images: SessionImageInput[] = []
@@ -404,7 +416,7 @@ function SessionPromptInput({
 
       void onSend(text || 'Describe this image', images.length > 0 ? images : undefined)
     },
-    [onSend]
+    [onSend, session.id]
   )
 
   return (

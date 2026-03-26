@@ -1,5 +1,10 @@
-import { useEffect, useState } from 'react'
-import { CheckIcon, ShieldAlertIcon, ShieldCheckIcon, ShieldIcon, ShieldQuestionIcon } from 'lucide-react'
+import {
+  CheckIcon,
+  ShieldAlertIcon,
+  ShieldCheckIcon,
+  ShieldIcon,
+  ShieldQuestionIcon
+} from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -10,13 +15,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import {
-  getPermissionMode,
-  onPermissionModeEvent,
-  setPermissionMode,
-  type PermissionMode
-} from '@/lib/sessions'
+import { useSessionPermissionMode, useSessionRuntimeMutations } from '@/lib/session-runtime-query'
 import { cn } from '@/lib/utils'
+import type { PermissionMode } from '@/lib/sessions'
 
 const MODE_CONFIG: Record<
   PermissionMode,
@@ -37,67 +38,31 @@ const MODE_CONFIG: Record<
     label: 'Auto',
     description: 'Allow all tools automatically',
     icon: ShieldCheckIcon,
-    buttonClass: 'border-green-500/30 bg-green-500/5 text-green-600 hover:bg-green-500/10 dark:text-green-400'
+    buttonClass:
+      'border-green-500/30 bg-green-500/5 text-green-600 hover:bg-green-500/10 dark:text-green-400'
   },
   strict: {
     label: 'Strict',
     description: 'Approve every tool call',
     icon: ShieldAlertIcon,
-    buttonClass: 'border-orange-500/30 bg-orange-500/5 text-orange-600 hover:bg-orange-500/10 dark:text-orange-400'
+    buttonClass:
+      'border-orange-500/30 bg-orange-500/5 text-orange-600 hover:bg-orange-500/10 dark:text-orange-400'
   }
 }
 
 const MODES: PermissionMode[] = ['ask', 'auto', 'strict']
 
-export function PermissionModeToggle({
-  sessionId
-}: {
-  sessionId: string
-}): React.JSX.Element {
-  const [mode, setMode] = useState<PermissionMode>('ask')
-  const [loading, setLoading] = useState(true)
-  const [pending, setPending] = useState(false)
+export function PermissionModeToggle({ sessionId }: { sessionId: string }): React.JSX.Element {
+  const permissionModeQuery = useSessionPermissionMode(sessionId)
+  const { setPermissionMode } = useSessionRuntimeMutations(sessionId)
 
-  useEffect(() => {
-    let disposed = false
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLoading(true)
-
-    void getPermissionMode(sessionId)
-      .then((value) => {
-        if (disposed) return
-        setMode(value)
-      })
-      .finally(() => {
-        if (disposed) return
-        setLoading(false)
-      })
-
-    const unsubscribe = onPermissionModeEvent((payload) => {
-      if (payload.sessionId !== sessionId) return
-      setMode(payload.mode)
-      setLoading(false)
-      setPending(false)
-    })
-
-    return () => {
-      disposed = true
-      unsubscribe()
-    }
-  }, [sessionId])
+  const mode = permissionModeQuery.data ?? 'ask'
+  const loading = permissionModeQuery.isPending
+  const pending = setPermissionMode.isPending
 
   async function handleSetMode(newMode: PermissionMode): Promise<void> {
     if (loading || pending || newMode === mode) return
-
-    setPending(true)
-    setMode(newMode)
-
-    const success = await setPermissionMode(sessionId, newMode)
-    if (!success) {
-      setMode(mode) // revert
-    }
-
-    setPending(false)
+    await setPermissionMode.mutateAsync(newMode)
   }
 
   const config = MODE_CONFIG[mode]
@@ -119,11 +84,7 @@ export function PermissionModeToggle({
               )}
               aria-disabled={loading || pending}
             >
-              {pending ? (
-                <Spinner className="size-3.5" />
-              ) : (
-                <Icon className="size-3.5" />
-              )}
+              {pending ? <Spinner className="size-3.5" /> : <Icon className="size-3.5" />}
               {config.label}
             </Button>
           </DropdownMenuTrigger>
