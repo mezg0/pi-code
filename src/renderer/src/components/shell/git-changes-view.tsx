@@ -24,6 +24,16 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import {
+  getChangedFiles,
+  getGitFileContents,
+  revertAllGitFiles,
+  revertGitFile,
+  stageAllGitFiles,
+  stageGitFile,
+  unstageAllGitFiles,
+  unstageGitFile
+} from '@/lib/git'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { GitChangedFile, GitFileContents } from '@pi-code/shared/session'
@@ -178,7 +188,7 @@ function FileRow({
   const loadContents = useCallback(async () => {
     setLoading(true)
     try {
-      const result = await window.git.fileContents(cwd, file.path)
+      const result = await getGitFileContents(cwd, file.path)
       setContents(result)
     } catch (err) {
       console.error('Failed to load file contents:', err)
@@ -217,9 +227,9 @@ function FileRow({
     e.stopPropagation()
     e.preventDefault()
     if (file.staging === 'staged') {
-      await window.git.unstageFile(cwd, file.path)
+      await unstageGitFile(cwd, file.path)
     } else {
-      await window.git.stageFile(cwd, file.path)
+      await stageGitFile(cwd, file.path)
     }
     onRefresh()
   }
@@ -227,7 +237,7 @@ function FileRow({
   async function handleRevert(e: React.MouseEvent): Promise<void> {
     e.stopPropagation()
     e.preventDefault()
-    const result = await window.git.revertFile(cwd, file.path)
+    const result = await revertGitFile(cwd, file.path)
     if (result.success) onRefresh()
   }
 
@@ -383,7 +393,7 @@ export function GitChangesView({ cwd }: { cwd: string }): React.JSX.Element {
 
   const fetchFiles = useCallback(async () => {
     try {
-      const result = await window.git.changedFiles(cwd)
+      const result = await getChangedFiles(cwd)
       result.sort((a, b) => a.path.localeCompare(b.path))
       setFiles(result)
     } catch (err) {
@@ -446,7 +456,7 @@ export function GitChangesView({ cwd }: { cwd: string }): React.JSX.Element {
                 <AlertDialogAction
                   variant="destructive"
                   onClick={async () => {
-                    await window.git.revertAll(cwd)
+                    await revertAllGitFiles(cwd)
                     fetchFiles()
                   }}
                 >
@@ -462,9 +472,9 @@ export function GitChangesView({ cwd }: { cwd: string }): React.JSX.Element {
                 className="text-muted-foreground hover:text-foreground transition-colors"
                 onClick={async () => {
                   if (allStaged) {
-                    await window.git.unstageAll(cwd)
+                    await unstageAllGitFiles(cwd)
                   } else {
-                    await window.git.stageAll(cwd)
+                    await stageAllGitFiles(cwd)
                   }
                   fetchFiles()
                 }}

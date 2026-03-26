@@ -52,6 +52,14 @@ import {
   type ModelInfo,
   type Session
 } from '@/lib/sessions'
+import {
+  listAuthProviders,
+  loginAuthProvider,
+  logoutAuthProvider,
+  onAuthProgress,
+  removeAuthCredential,
+  setAuthApiKey
+} from '@/lib/auth'
 import type { AuthProviderInfo } from '@pi-code/shared/session'
 
 type SettingsSection = 'api-keys' | 'model-shortcuts' | 'archived-chats'
@@ -110,7 +118,7 @@ function ApiKeysSection(): React.JSX.Element {
 
   const loadProviders = useCallback(async () => {
     try {
-      const list = await window.auth.listProviders()
+      const list = await listAuthProviders()
       setProviders(list)
     } catch (error) {
       console.error('Failed to load providers:', error)
@@ -668,7 +676,7 @@ function OAuthProviderRow({
 
   useEffect(() => {
     if (!loggingIn) return
-    const unsub = window.auth.onProgress((payload) => {
+    const unsub = onAuthProgress((payload) => {
       if (payload.providerId === provider.id) {
         setProgressMessage(payload.message)
       }
@@ -681,7 +689,7 @@ function OAuthProviderRow({
     setError(null)
     setProgressMessage('Opening browser...')
     try {
-      const success = await window.auth.login(provider.id)
+      const success = await loginAuthProvider(provider.id)
       if (!success) {
         setError('Login failed')
       }
@@ -695,7 +703,7 @@ function OAuthProviderRow({
   }
 
   async function handleLogout(): Promise<void> {
-    await window.auth.logout(provider.id)
+    await logoutAuthProvider(provider.id)
     await onUpdate()
   }
 
@@ -766,7 +774,7 @@ function ApiKeyProviderRow({
     setSaving(true)
     setError(null)
     try {
-      const success = await window.auth.setApiKey(provider.id, keyInput.trim())
+      const success = await setAuthApiKey(provider.id, keyInput.trim())
       if (success) {
         setKeyInput('')
         await onUpdate()
@@ -781,7 +789,7 @@ function ApiKeyProviderRow({
   }
 
   async function handleRemove(): Promise<void> {
-    await window.auth.removeCredential(provider.id)
+    await removeAuthCredential(provider.id)
     await onUpdate()
   }
 

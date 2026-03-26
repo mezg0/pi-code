@@ -11,6 +11,11 @@ import {
   CommandList,
   CommandSeparator
 } from '@/components/ui/command'
+import {
+  checkoutGitBranch,
+  createGitBranch,
+  listGitBranches
+} from '@/lib/git'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -38,7 +43,7 @@ export function BranchPicker({
     setLoading(true)
     setError(null)
     try {
-      const result = await window.git.listBranches(cwd)
+      const result = await listGitBranches(cwd)
       setBranches(result.filter((b) => !b.isRemote))
     } catch (err) {
       console.error('Failed to list branches:', err)
@@ -64,7 +69,7 @@ export function BranchPicker({
     setSwitching(true)
     setError(null)
     try {
-      const result = await window.git.checkoutBranch(cwd, branchName)
+      const result = await checkoutGitBranch(cwd, branchName)
       if (result.success) {
         setOpen(false)
         onBranchChanged()
@@ -82,7 +87,7 @@ export function BranchPicker({
     setSwitching(true)
     setError(null)
     try {
-      const result = await window.git.createBranch(cwd, branchName)
+      const result = await createGitBranch(cwd, branchName)
       if (result.success) {
         setOpen(false)
         onBranchChanged()

@@ -17,6 +17,13 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
+import {
+  commitGitChanges,
+  createGitPullRequest,
+  generateGitCommitMessage,
+  getGitStatus,
+  pushGitChanges
+} from '@/lib/git'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { sendSessionMessage } from '@/lib/sessions'
@@ -48,7 +55,7 @@ export function CommitDialog({
     if (!cwd) return
     setLoading(true)
     try {
-      const s = await window.git.status(cwd)
+      const s = await getGitStatus(cwd)
       setStatus(s)
     } catch (err) {
       console.error('Failed to get git status:', err)
@@ -75,7 +82,7 @@ export function CommitDialog({
       // Generate message if blank
       let message = commitMessage.trim()
       if (!message) {
-        message = await window.git.generateMessage(cwd)
+        message = await generateGitCommitMessage(cwd)
       }
 
       // Dispatch "commit-pr" to the agent session if one is active
@@ -109,7 +116,7 @@ export function CommitDialog({
       }
 
       // Step 1: Commit
-      const commitResult = await window.git.commit(cwd, message, includeUnstaged)
+      const commitResult = await commitGitChanges(cwd, message, includeUnstaged)
       if (!commitResult.success) {
         setResult({ success: false, message: commitResult.error || 'Commit failed' })
         return
@@ -117,7 +124,7 @@ export function CommitDialog({
 
       // Step 2: Push (if needed)
       if (selectedAction === 'commit-push' || selectedAction === 'commit-pr') {
-        const pushResult = await window.git.push(cwd)
+        const pushResult = await pushGitChanges(cwd)
         if (!pushResult.success) {
           setResult({
             success: false,
@@ -129,7 +136,7 @@ export function CommitDialog({
 
       // Step 3: Create PR — fallback when no agent session is available
       if (selectedAction === 'commit-pr') {
-        const prResult = await window.git.createPR(cwd, message.split('\n')[0], isDraft)
+        const prResult = await createGitPullRequest(cwd, message.split('\n')[0], isDraft)
         if (!prResult.success) {
           setResult({
             success: false,

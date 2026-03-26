@@ -12,8 +12,9 @@ import { useWorkspaceState } from '@/hooks/use-workspace-state'
 import { SHORTCUTS } from '@/lib/shortcuts'
 import { loadWorkspace } from '@/lib/workspace'
 import { AppShell } from '@/components/shell/app-shell'
+import { getGitStatus, removeGitWorktree } from '@/lib/git'
+import { pickAndAddProject } from '@/lib/native'
 import {
-  addProject,
   createSession,
   DEFAULT_AGENT,
   DEFAULT_MODEL,
@@ -106,7 +107,7 @@ function RootComponent(): React.JSX.Element {
   }, [activeSessionId, visitedAtBySessionId, workspace.sessions])
 
   async function handleAddProject(): Promise<void> {
-    const project = await addProject()
+    const project = await pickAndAddProject()
     if (!project) return
     await router.invalidate()
   }
@@ -172,7 +173,7 @@ function RootComponent(): React.JSX.Element {
       if (isOrphaned) {
         // Check for uncommitted changes in the worktree
         try {
-          const gitStatus = await window.git.status(session.worktreePath)
+          const gitStatus = await getGitStatus(session.worktreePath)
           if (gitStatus.hasChanges) {
             const displayPath = session.worktreePath.split('/').pop() ?? session.worktreePath
             const confirmed = await promptWorktreeDelete(session, displayPath)
@@ -183,7 +184,7 @@ function RootComponent(): React.JSX.Element {
         }
 
         try {
-          await window.git.removeWorktree(session.repoPath, session.worktreePath, true)
+          await removeGitWorktree(session.repoPath, session.worktreePath, true)
         } catch (err) {
           console.error('Failed to remove worktree:', err)
         }

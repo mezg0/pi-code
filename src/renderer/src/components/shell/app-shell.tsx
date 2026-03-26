@@ -27,6 +27,7 @@ import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sideb
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { extractLatestPlan, getPlanMessageKey } from '@/lib/plan'
+import { getGitStatus, isGitRepo } from '@/lib/git'
 import { getAgentMessages, onAgentMessages, type Project, type Session } from '@/lib/sessions'
 import { getShortcutDisplay, SHORTCUTS } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
@@ -272,13 +273,13 @@ function AppShellContent({
       return
     }
     try {
-      const isRepo = await window.git.isRepo(cwd)
+      const isRepo = await isGitRepo(cwd)
       if (!isRepo) {
         setHasChanges(false)
         setBranchName('')
         return
       }
-      const status = await window.git.status(cwd)
+      const status = await getGitStatus(cwd)
       setHasChanges(status.hasChanges)
       setBranchName(status.branch)
     } catch {

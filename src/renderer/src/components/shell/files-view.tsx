@@ -26,6 +26,14 @@ function defineAppTheme(m: Monaco): void {
 
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  listFiles,
+  onFilesChanged,
+  readFileContents,
+  unwatchFiles,
+  watchFiles,
+  writeFileContents
+} from '@/lib/files'
 import { cn } from '@/lib/utils'
 import type { FileEntry } from '@pi-code/shared/session'
 
@@ -109,7 +117,7 @@ function FileTreeNode({
   // Re-fetch children when the directory is expanded and refreshKey changes
   useEffect(() => {
     if (expanded && entry.type === 'directory') {
-      window.files.list(cwd, entry.path).then(setChildren).catch(console.error)
+      listFiles(cwd, entry.path).then(setChildren).catch(console.error)
     }
   }, [refreshKey, expanded, cwd, entry.path, entry.type])
 
@@ -124,7 +132,7 @@ function FileTreeNode({
     if (next && children === null) {
       setLoading(true)
       try {
-        const result = await window.files.list(cwd, entry.path)
+        const result = await listFiles(cwd, entry.path)
         setChildren(result)
       } catch (err) {
         console.error('Failed to list directory:', err)
@@ -210,14 +218,14 @@ export function FilesView({ cwd }: { cwd: string }): React.JSX.Element {
 
   // Load root directory
   useEffect(() => {
-    window.files.list(cwd).then(setRootEntries).catch(console.error)
+    listFiles(cwd).then(setRootEntries).catch(console.error)
   }, [cwd, refreshKey])
 
   // Watch for external file changes
   useEffect(() => {
-    window.files.watch(cwd).catch(console.error)
+    watchFiles(cwd).catch(console.error)
 
-    const unsubscribe = window.files.onChanged((payload) => {
+    const unsubscribe = onFilesChanged((payload) => {
       if (payload.cwd !== cwd) return
 
       // Bump refreshKey to re-fetch root + expanded directories
@@ -229,8 +237,7 @@ export function FilesView({ cwd }: { cwd: string }): React.JSX.Element {
         prev.map((file) => {
           if (changedSet.has(file.path)) {
             // Re-read the file content in background
-            window.files
-              .read(cwd, file.path)
+            readFileContents(cwd, file.path)
               .then((newContent) => {
                 setOpenFiles((current) =>
                   current.map((f) =>
@@ -254,7 +261,7 @@ export function FilesView({ cwd }: { cwd: string }): React.JSX.Element {
 
     return () => {
       unsubscribe()
-      window.files.unwatch(cwd).catch(console.error)
+      unwatchFiles(cwd).catch(console.error)
     }
   }, [cwd])
 
@@ -269,7 +276,7 @@ export function FilesView({ cwd }: { cwd: string }): React.JSX.Element {
 
       // Open new file
       try {
-        const content = await window.files.read(cwd, path)
+        const content = await readFileContents(cwd, path)
         const language = getLanguage(path.split('/').pop() ?? '')
         setOpenFiles((prev) => [...prev, { path, content, originalContent: content, language }])
         setActiveFilePath(path)
@@ -300,7 +307,7 @@ export function FilesView({ cwd }: { cwd: string }): React.JSX.Element {
   async function handleSave(): Promise<void> {
     if (!activeFile) return
     try {
-      await window.files.write(cwd, activeFile.path, activeFile.content)
+      await writeFileContents(cwd, activeFile.path, activeFile.content)
       setOpenFiles((prev) =>
         prev.map((f) => (f.path === activeFile.path ? { ...f, originalContent: f.content } : f))
       )

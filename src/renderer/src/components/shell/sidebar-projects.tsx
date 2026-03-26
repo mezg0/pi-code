@@ -64,6 +64,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { GitBranch, GitPRStatus, Project, Session, SessionStatus } from '@/lib/sessions'
+import { createGitWorktree, listGitBranches } from '@/lib/git'
 import type { SessionGroup } from '@/lib/workspace'
 
 const BUSY_STATUSES = new Set<SessionStatus>(['queued', 'starting', 'running', 'stopping'])
@@ -251,7 +252,7 @@ function NewSessionButton({
   const fetchBranches = useCallback(async () => {
     setLoading(true)
     try {
-      const result = await window.git.listBranches(project.repoPath)
+      const result = await listGitBranches(project.repoPath)
       // Only show local branches in the menu
       setBranches(result.filter((b) => !b.isRemote))
     } catch {
@@ -277,7 +278,7 @@ function NewSessionButton({
       const suffix = Math.random().toString(36).slice(2, 7)
       const newBranch = `${branch}-wt-${suffix}`
 
-      const result = await window.git.createWorktree(project.repoPath, branch, newBranch)
+      const result = await createGitWorktree(project.repoPath, branch, newBranch)
       setMenuOpen(false)
       await onCreateSession(project, {
         branch: newBranch,
@@ -315,11 +316,7 @@ function NewSessionButton({
     setNewBranchError(null)
     try {
       const currentBranch = branches.find((b) => b.isCurrent)?.name ?? 'HEAD'
-      const result = await window.git.createWorktree(
-        project.repoPath,
-        currentBranch,
-        trimmed
-      )
+      const result = await createGitWorktree(project.repoPath, currentBranch, trimmed)
       setNewBranchDialogOpen(false)
       await onCreateSession(project, {
         branch: trimmed,
