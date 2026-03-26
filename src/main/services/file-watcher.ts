@@ -1,5 +1,6 @@
 import { watch, type FSWatcher } from 'fs'
 import { BrowserWindow } from 'electron'
+import { publishServerEvent } from '@pi-code/server/event-bus'
 import { sep } from 'path'
 
 // Directories to ignore (same as files.ts IGNORED set)
@@ -36,6 +37,7 @@ function isIgnored(filePath: string): boolean {
 }
 
 function broadcast(channel: string, payload: unknown): void {
+  publishServerEvent(channel, payload)
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send(channel, payload)
   }

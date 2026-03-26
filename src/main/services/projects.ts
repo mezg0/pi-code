@@ -62,6 +62,16 @@ export async function listProjects(): Promise<Project[]> {
   return existingRepoPaths.map(toProject)
 }
 
+export async function addProjectByPath(repoPath: string): Promise<Project> {
+  const trimmedRepoPath = repoPath.trim()
+  const stored = await readStoredProjects()
+  await writeStoredProjects({
+    repoPaths: Array.from(new Set([...stored.repoPaths, trimmedRepoPath]))
+  })
+
+  return toProject(trimmedRepoPath)
+}
+
 export async function addProject(): Promise<Project | null> {
   const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showOpenDialog(window, {
@@ -74,12 +84,7 @@ export async function addProject(): Promise<Project | null> {
   const repoPath = result.canceled ? undefined : result.filePaths[0]
   if (!repoPath) return null
 
-  const stored = await readStoredProjects()
-  await writeStoredProjects({
-    repoPaths: Array.from(new Set([...stored.repoPaths, repoPath]))
-  })
-
-  return toProject(repoPath)
+  return addProjectByPath(repoPath)
 }
 
 export async function removeProject(projectId: string): Promise<boolean> {

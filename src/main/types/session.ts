@@ -5,4 +5,4 @@ export type {
   CreateSessionInput,
   UpdateSessionInput,
   SessionApi
-} from '../../shared/session'
+} from '@pi-code/shared/session'

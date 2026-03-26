@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { getGitPRStatus } from '@/lib/git'
 import type { GitPRStatus, Session } from '@/lib/sessions'
 
 /** How often to re-check PR status (ms) */
@@ -36,7 +37,7 @@ export function usePRStatus(sessions: Session[]): PRStatusMap {
       // Fetch PR status for each worktree session concurrently
       const results = await Promise.allSettled(
         worktreeSessions.map(async (session) => {
-          const status = await window.git.getPRStatus(session.repoPath, session.branch!)
+          const status = await getGitPRStatus(session.repoPath, session.branch!)
           return { sessionId: session.id, status }
         })
       )

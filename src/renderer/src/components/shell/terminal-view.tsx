@@ -1,6 +1,13 @@
 import { useEffect, useRef } from 'react'
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
+import {
+  onTerminalData,
+  onTerminalExit,
+  openTerminal,
+  resizeTerminal,
+  writeTerminal
+} from '@/lib/terminal'
 import '@xterm/xterm/css/xterm.css'
 
 export function TerminalView({ id, cwd }: { id: string; cwd: string }): React.JSX.Element {
@@ -33,31 +40,31 @@ export function TerminalView({ id, cwd }: { id: string; cwd: string }): React.JS
 
     let disposed = false
 
-    void window.terminal.open(id, cwd).then((buffer) => {
+    void openTerminal(id, cwd).then((buffer) => {
       if (disposed) return
       if (buffer) term.write(buffer)
-      void window.terminal.resize(id, term.cols, term.rows)
+      void resizeTerminal(id, term.cols, term.rows)
     })
 
-    const unsubData = window.terminal.onData((payload) => {
+    const unsubData = onTerminalData((payload) => {
       if (payload.id === id) {
         term.write(payload.data)
       }
     })
 
-    const unsubExit = window.terminal.onExit((payload) => {
+    const unsubExit = onTerminalExit((payload) => {
       if (payload.id === id) {
         term.write('\r\n[process exited]\r\n')
       }
     })
 
     const disposeInput = term.onData((data) => {
-      void window.terminal.write(id, data)
+      void writeTerminal(id, data)
     })
 
     const observer = new ResizeObserver(() => {
       fitAddon.fit()
-      void window.terminal.resize(id, term.cols, term.rows)
+      void resizeTerminal(id, term.cols, term.rows)
     })
     observer.observe(container)
 

@@ -5,7 +5,7 @@
 import { spawn } from 'child_process'
 import { accessSync, constants, statSync } from 'fs'
 import { join, extname } from 'path'
-import { EDITORS, type EditorId } from '../../shared/editor'
+import { EDITORS, type EditorId } from '@pi-code/shared/editor'
 
 // ── Platform helpers ─────────────────────────────────────────────────
 

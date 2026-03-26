@@ -7,9 +7,12 @@ import {
   useState,
   type ReactNode
 } from 'react'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { Drawer } from 'vaul'
 import {
   GitBranchIcon,
   GitCommitHorizontalIcon,
+  MenuIcon,
   PanelRightCloseIcon,
   PanelRightOpenIcon
 } from 'lucide-react'
@@ -27,6 +30,7 @@ import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sideb
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { extractLatestPlan, getPlanMessageKey } from '@/lib/plan'
+import { getGitStatus, isGitRepo } from '@/lib/git'
 import { getAgentMessages, onAgentMessages, type Project, type Session } from '@/lib/sessions'
 import { getShortcutDisplay, SHORTCUTS } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
@@ -204,6 +208,7 @@ function AppShellContent({
   children: ReactNode
 }): React.JSX.Element {
   const { state, toggleSidebar } = useSidebar()
+  const isMobile = useIsMobile()
   const sidebarCollapsed = state === 'collapsed'
   const [commitOpen, setCommitOpen] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
@@ -272,13 +277,13 @@ function AppShellContent({
       return
     }
     try {
-      const isRepo = await window.git.isRepo(cwd)
+      const isRepo = await isGitRepo(cwd)
       if (!isRepo) {
         setHasChanges(false)
         setBranchName('')
         return
       }
-      const status = await window.git.status(cwd)
+      const status = await getGitStatus(cwd)
       setHasChanges(status.hasChanges)
       setBranchName(status.branch)
     } catch {
@@ -408,11 +413,20 @@ function AppShellContent({
       <header
         className={cn(
           'drag-region flex h-11 min-w-0 shrink-0 items-center justify-between gap-2 border-b border-border px-4 transition-[padding] duration-200',
-          sidebarCollapsed && 'pl-20'
+          sidebarCollapsed && 'pl-4 md:pl-20'
         )}
       >
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="no-drag shrink-0 md:hidden"
+          onClick={toggleSidebar}
+        >
+          <MenuIcon />
+        </Button>
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{title}</span>
-        <div className="flex items-center gap-1">
+        {/* Desktop header actions */}
+        <div className="hidden items-center gap-1 md:flex">
           {cwd ? (
             <>
               {isWorktreeSession ? (
@@ -470,49 +484,110 @@ function AppShellContent({
             </Tooltip>
           ) : null}
         </div>
+
+        {/* Mobile header actions — single icon */}
+        <div className="flex items-center gap-1 md:hidden">
+          {cwd && showPanelToggle ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="no-drag shrink-0"
+              onClick={toggleToolPanel}
+            >
+              {toolPanelOpen ? <PanelRightCloseIcon /> : <PanelRightOpenIcon />}
+            </Button>
+          ) : null}
+        </div>
       </header>
 
       <CommitDialog open={commitOpen} onOpenChange={handleCommitOpenChange} cwd={cwd} sessionId={activeSession?.id} />
 
       <div className="min-w-0 flex-1 overflow-hidden">
         {showPanelToggle ? (
-          <ResizablePanelGroup
-            groupRef={panelGroupRef}
-            orientation="horizontal"
-            className="min-w-0 overflow-hidden"
-          >
-            <ResizablePanel
-              id="main"
-              defaultSize={toolPanelOpen ? 100 - toolPanelSize : 100}
-              minSize={30}
-              className="min-w-0 overflow-hidden"
-            >
-              {children}
-            </ResizablePanel>
+          <>
+            {/* Desktop: resizable split */}
+            <div className="hidden h-full md:block">
+              <ResizablePanelGroup
+                groupRef={panelGroupRef}
+                orientation="horizontal"
+                className="min-w-0 overflow-hidden"
+              >
+                <ResizablePanel
+                  id="main"
+                  defaultSize={toolPanelOpen ? 100 - toolPanelSize : 100}
+                  minSize={30}
+                  className="min-w-0 overflow-hidden"
+                >
+                  {children}
+                </ResizablePanel>
 
-            <ResizableHandle
-              className={cn(!toolPanelOpen && 'pointer-events-none opacity-0')}
-            />
-            <ResizablePanel
-              id="tool"
-              defaultSize={toolPanelSize}
-              minSize={20}
-              collapsible
-              collapsedSize={0}
-              onResize={handleToolPanelResize}
-              className="min-w-0 overflow-hidden"
-            >
-              <ToolPanel
-                activeTab={displayedToolTab}
-                onSelect={setActiveToolTab}
-                onClose={() => setActiveToolTab(null)}
-                cwd={cwd}
-                sessionId={activeSession?.id}
-                hasPlan={planVisible}
-                onDismissPlan={handleDismissPlan}
-              />
-            </ResizablePanel>
-          </ResizablePanelGroup>
+                <ResizableHandle
+                  className={cn(!toolPanelOpen && 'pointer-events-none opacity-0')}
+                />
+                <ResizablePanel
+                  id="tool"
+                  defaultSize={toolPanelSize}
+                  minSize={20}
+                  collapsible
+                  collapsedSize={0}
+                  onResize={handleToolPanelResize}
+                  className="min-w-0 overflow-hidden"
+                >
+                  <ToolPanel
+                    activeTab={displayedToolTab}
+                    onSelect={setActiveToolTab}
+                    onClose={() => setActiveToolTab(null)}
+                    cwd={cwd}
+                    sessionId={activeSession?.id}
+                    hasPlan={planVisible}
+                    onDismissPlan={handleDismissPlan}
+                  />
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            </div>
+
+            {/* Mobile: content always visible, tool panel opens as bottom sheet */}
+            <div className="flex h-full flex-col md:hidden">
+              {children}
+              {isMobile && <Drawer.Root
+                open={toolPanelOpen}
+                onOpenChange={(open) => {
+                  if (!open) {
+                    if (displayedToolTab === 'plan') handleDismissPlan()
+                    setActiveToolTab(null)
+                  }
+                }}
+              >
+                <Drawer.Portal>
+                  <Drawer.Overlay className="fixed inset-0 z-50 bg-black/40" />
+                  <Drawer.Content
+                    className="fixed inset-x-0 bottom-0 z-50 flex h-[100dvh] flex-col rounded-t-xl bg-background"
+                    onOpenAutoFocus={(e) => e.preventDefault()}
+                  >
+                    <div className="mx-auto mt-3 mb-2 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/20" />
+                    <Drawer.Title className="sr-only">Tools</Drawer.Title>
+                    <div className="min-h-0 flex-1 overflow-hidden">
+                      <ToolPanel
+                        activeTab={displayedToolTab}
+                        onSelect={setActiveToolTab}
+                        onClose={() => setActiveToolTab(null)}
+                        cwd={cwd}
+                        sessionId={activeSession?.id}
+                        hasPlan={planVisible}
+                        onDismissPlan={() => {
+                          handleDismissPlan()
+                          setActiveToolTab(null)
+                        }}
+                        mobile
+                        onCommit={() => setCommitOpen(true)}
+                        hasChanges={hasChanges}
+                      />
+                    </div>
+                  </Drawer.Content>
+                </Drawer.Portal>
+              </Drawer.Root>}
+            </div>
+          </>
         ) : (
           children
         )}

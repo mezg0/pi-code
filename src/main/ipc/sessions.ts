@@ -23,7 +23,7 @@ import {
   getPendingPermission,
   replyToPermission
 } from '../services/tools/permission'
-import type { QuestionAnswer, PermissionMode, PermissionResponse } from '../../shared/session'
+import type { QuestionAnswer, PermissionMode, PermissionResponse } from '@pi-code/shared/session'
 
 export function registerSessionIpc(): void {
   ipcMain.handle('projects:list', () => listProjects())

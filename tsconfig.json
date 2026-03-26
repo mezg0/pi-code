@@ -11,5 +11,10 @@
       ]
     }
   },
-  "references": [{ "path": "./tsconfig.node.json" }, { "path": "./tsconfig.web.json" }]
+  "references": [
+    { "path": "./packages/shared/tsconfig.json" },
+    { "path": "./packages/server/tsconfig.json" },
+    { "path": "./tsconfig.node.json" },
+    { "path": "./tsconfig.web.json" }
+  ]
 }

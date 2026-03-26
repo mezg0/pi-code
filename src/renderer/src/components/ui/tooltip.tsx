@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Tooltip as TooltipPrimitive } from "radix-ui"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 import { cn } from "@/lib/utils"
 
@@ -19,9 +20,12 @@ function TooltipProvider({
 }
 
 function Tooltip({
+  open,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Root>) {
-  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+  const isMobile = useIsMobile()
+  // Never show tooltips on touch devices
+  return <TooltipPrimitive.Root data-slot="tooltip" open={isMobile ? false : open} {...props} />
 }
 
 function TooltipTrigger({

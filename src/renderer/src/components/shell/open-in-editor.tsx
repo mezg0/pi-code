@@ -13,8 +13,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { getShortcutDisplay, SHORTCUTS } from '@/lib/shortcuts'
-import type { EditorId } from '../../../../shared/editor'
-import { EDITORS } from '../../../../shared/editor'
+import { getAvailableEditors, getNativeCapabilities, openInEditor } from '@/lib/native'
+import type { EditorId } from '@pi-code/shared/editor'
+import { EDITORS } from '@pi-code/shared/editor'
 
 // ── localStorage preference ──────────────────────────────────────────
 
@@ -112,12 +113,15 @@ export function OpenInEditor({ cwd }: { cwd: string | undefined }): React.JSX.El
   const [availableEditors, setAvailableEditors] = useState<EditorId[]>([])
   const [preferredEditor, setPreferredEditorState] = useState<EditorId | null>(loadPreferredEditor)
 
+  const native = getNativeCapabilities()
+
   // Fetch available editors once on mount
   useEffect(() => {
-    void window.editor.getAvailableEditors().then((editors) => {
+    if (!native.canOpenInEditor) return
+    void getAvailableEditors().then((editors) => {
       setAvailableEditors(editors)
     })
-  }, [])
+  }, [native.canOpenInEditor])
 
   const setPreferredEditor = useCallback((editorId: EditorId) => {
     setPreferredEditorState(editorId)
@@ -147,7 +151,7 @@ export function OpenInEditor({ cwd }: { cwd: string | undefined }): React.JSX.El
     (editorId: EditorId | null) => {
       const editor = editorId ?? effectiveEditor
       if (!editor || !cwd) return
-      void window.editor.openInEditor(cwd, editor).catch((err) => {
+      void openInEditor(cwd, editor).catch((err) => {
         console.error('Failed to open in editor:', err)
       })
       setPreferredEditor(editor)
@@ -162,8 +166,8 @@ export function OpenInEditor({ cwd }: { cwd: string | undefined }): React.JSX.El
     { enabled: Boolean(cwd && effectiveEditor) }
   )
 
-  // Don't render if no editors are available or no cwd
-  if (!cwd || availableEditors.length === 0) return null
+  // Don't render if native editor access is unavailable, no editors are available, or no cwd
+  if (!native.canOpenInEditor || !cwd || availableEditors.length === 0) return null
 
   return (
     <ButtonGroup>

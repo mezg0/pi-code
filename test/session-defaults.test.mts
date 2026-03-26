@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { deriveSessionTitle, NEW_SESSION_TITLE } from '../src/shared/session-defaults.ts'
+import { deriveSessionTitle, NEW_SESSION_TITLE } from '@pi-code/shared/session-defaults'
 
 // ---------------------------------------------------------------------------
 // deriveSessionTitle

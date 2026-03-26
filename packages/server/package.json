@@ -1,0 +1,11 @@
+{
+  "name": "@pi-code/server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./event-bus": "./src/event-bus.ts",
+    "./remote": "./src/routes/remote.ts"
+  }
+}

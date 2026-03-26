@@ -7,6 +7,15 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Safe area insets for notched/rounded phones */
+html {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+
 :root {
   --background: oklch(0.985 0.002 220);
   --foreground: oklch(0.205 0.01 230);

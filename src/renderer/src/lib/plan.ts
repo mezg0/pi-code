@@ -3,4 +3,4 @@ export {
   getPlanMessageKey,
   type SavedPlan,
   type PlanToolName
-} from '../../../shared/plan'
+} from '@pi-code/shared/plan'

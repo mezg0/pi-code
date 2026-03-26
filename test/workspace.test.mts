@@ -1,9 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { groupSessions, upsertSession } from '../src/shared/workspace.ts'
+import { groupSessions, upsertSession } from '@pi-code/shared/workspace'
 
-import type { Project, Session } from '../src/shared/session.ts'
+import type { Project, Session } from '@pi-code/shared/session'
 
 function makeProject(repoPath: string, name?: string): Project {
   return { id: repoPath, name: name ?? repoPath.split('/').pop()!, repoPath }
