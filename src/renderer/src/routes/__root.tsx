@@ -53,7 +53,9 @@ function RootComponent(): React.JSX.Element {
   const sessionMatch = matchRoute({ to: '/sessions/$sessionId/overview', fuzzy: true })
   const activeSessionId =
     sessionMatch && 'sessionId' in sessionMatch ? sessionMatch.sessionId : undefined
-  const activeSession = workspace.sessions.find((session) => session.id === activeSessionId) ?? null
+  const activeSession =
+    workspace.sessions.find((session) => session.id === activeSessionId && !session.archived) ??
+    null
   const isSettings = Boolean(matchRoute({ to: '/settings' }))
   const visitedAtBySessionId = loadSessionVisitedAt()
 
@@ -98,8 +100,9 @@ function RootComponent(): React.JSX.Element {
   }, [])
 
   const unreadSessionIds = useMemo(() => {
-    return new Set(
+    return new Set<string>(
       workspace.sessions
+        .filter((session) => !session.archived)
         .filter((session) => session.id !== activeSessionId)
         .filter((session) => hasUnseenSessionCompletion(session, visitedAtBySessionId[session.id]))
         .map((session) => session.id)
@@ -250,8 +253,8 @@ function RootComponent(): React.JSX.Element {
             <AlertDialogTitle>Uncommitted changes</AlertDialogTitle>
             <AlertDialogDescription>
               The worktree at &ldquo;{worktreeArchiveDialog?.displayPath}&rdquo; has uncommitted
-              changes that will be lost. Are you sure you want to archive this session and delete the
-              worktree?
+              changes that will be lost. Are you sure you want to archive this session and delete
+              the worktree?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

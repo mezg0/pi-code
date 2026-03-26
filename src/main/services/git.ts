@@ -1,6 +1,6 @@
 import { execFile } from 'child_process'
 import { promisify } from 'util'
-import { readFile, unlink } from 'fs/promises'
+import { access, readFile, unlink } from 'fs/promises'
 import { basename, join } from 'path'
 import { homedir } from 'os'
 import { buildCommitMessage } from '@pi-code/shared/commit-message'
@@ -16,11 +16,38 @@ import type {
   GitWorktreeResult
 } from '@pi-code/shared/session'
 
-export type { GitStatus, GitCommitResult, GitChangedFile, GitBranch, GitPRStatus, GitWorktreeResult }
+export type {
+  GitStatus,
+  GitCommitResult,
+  GitChangedFile,
+  GitBranch,
+  GitPRStatus,
+  GitWorktreeResult
+}
 
 const exec = promisify(execFile)
 
+class MissingGitCwdError extends Error {
+  constructor(cwd: string) {
+    super(`Git working directory does not exist: ${cwd}`)
+    this.name = 'MissingGitCwdError'
+  }
+}
+
+async function ensureGitCwd(cwd: string): Promise<void> {
+  try {
+    await access(cwd)
+  } catch {
+    throw new MissingGitCwdError(cwd)
+  }
+}
+
+function isMissingGitCwdError(error: unknown): error is MissingGitCwdError {
+  return error instanceof MissingGitCwdError
+}
+
 async function git(cwd: string, ...args: string[]): Promise<string> {
+  await ensureGitCwd(cwd)
   const { stdout } = await exec('git', args, { cwd, maxBuffer: 10 * 1024 * 1024 })
   // Use trimEnd() — not trim() — to preserve leading characters.
   // git status --porcelain uses leading spaces as part of the status code
@@ -31,6 +58,7 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
 
 /** Raw git output without trimEnd — for file content where trailing whitespace matters */
 async function gitRaw(cwd: string, ...args: string[]): Promise<string> {
+  await ensureGitCwd(cwd)
   const { stdout } = await exec('git', args, { cwd, maxBuffer: 10 * 1024 * 1024 })
   return stdout
 }
@@ -54,57 +82,80 @@ export async function isGitRepo(cwd: string): Promise<boolean> {
 }
 
 export async function getGitStatus(cwd: string): Promise<GitStatus> {
-  const branch = await git(cwd, 'rev-parse', '--abbrev-ref', 'HEAD')
-
-  const statusOutput = await git(cwd, 'status', '--porcelain', '-uall')
-  const lines = statusOutput.split('\n').filter(Boolean)
-
-  let staged = 0
-  let unstaged = 0
-
-  for (const line of lines) {
-    const index = line[0]
-    const worktree = line[1]
-    if (index !== ' ' && index !== '?') staged++
-    if (worktree !== ' ' || line.startsWith('??')) unstaged++
-  }
-
-  let insertions = 0
-  let deletions = 0
-
   try {
-    const stagedStat = await git(cwd, 'diff', '--cached', '--shortstat')
-    const stagedInsert = stagedStat.match(/(\d+) insertion/)
-    const stagedDelete = stagedStat.match(/(\d+) deletion/)
-    if (stagedInsert) insertions += parseInt(stagedInsert[1])
-    if (stagedDelete) deletions += parseInt(stagedDelete[1])
-  } catch {
-    /* no staged changes */
-  }
+    const branch = await git(cwd, 'rev-parse', '--abbrev-ref', 'HEAD')
 
-  try {
-    const unstagedStat = await git(cwd, 'diff', '--shortstat')
-    const unstagedInsert = unstagedStat.match(/(\d+) insertion/)
-    const unstagedDelete = unstagedStat.match(/(\d+) deletion/)
-    if (unstagedInsert) insertions += parseInt(unstagedInsert[1])
-    if (unstagedDelete) deletions += parseInt(unstagedDelete[1])
-  } catch {
-    /* no unstaged changes */
-  }
+    const statusOutput = await git(cwd, 'status', '--porcelain', '-uall')
+    const lines = statusOutput.split('\n').filter(Boolean)
 
-  return {
-    branch,
-    hasChanges: lines.length > 0,
-    filesChanged: lines.length,
-    insertions,
-    deletions,
-    staged,
-    unstaged
+    let staged = 0
+    let unstaged = 0
+
+    for (const line of lines) {
+      const index = line[0]
+      const worktree = line[1]
+      if (index !== ' ' && index !== '?') staged++
+      if (worktree !== ' ' || line.startsWith('??')) unstaged++
+    }
+
+    let insertions = 0
+    let deletions = 0
+
+    try {
+      const stagedStat = await git(cwd, 'diff', '--cached', '--shortstat')
+      const stagedInsert = stagedStat.match(/(\d+) insertion/)
+      const stagedDelete = stagedStat.match(/(\d+) deletion/)
+      if (stagedInsert) insertions += parseInt(stagedInsert[1])
+      if (stagedDelete) deletions += parseInt(stagedDelete[1])
+    } catch {
+      /* no staged changes */
+    }
+
+    try {
+      const unstagedStat = await git(cwd, 'diff', '--shortstat')
+      const unstagedInsert = unstagedStat.match(/(\d+) insertion/)
+      const unstagedDelete = unstagedStat.match(/(\d+) deletion/)
+      if (unstagedInsert) insertions += parseInt(unstagedInsert[1])
+      if (unstagedDelete) deletions += parseInt(unstagedDelete[1])
+    } catch {
+      /* no unstaged changes */
+    }
+
+    return {
+      branch,
+      hasChanges: lines.length > 0,
+      filesChanged: lines.length,
+      insertions,
+      deletions,
+      staged,
+      unstaged
+    }
+  } catch (error) {
+    if (isMissingGitCwdError(error)) {
+      return {
+        branch: '',
+        hasChanges: false,
+        filesChanged: 0,
+        insertions: 0,
+        deletions: 0,
+        staged: 0,
+        unstaged: 0
+      }
+    }
+    throw error
   }
 }
 
 export async function getChangedFiles(cwd: string): Promise<GitChangedFile[]> {
-  const statusOutput = await git(cwd, 'status', '--porcelain', '-uall')
+  let statusOutput = ''
+  try {
+    statusOutput = await git(cwd, 'status', '--porcelain', '-uall')
+  } catch (error) {
+    if (isMissingGitCwdError(error)) {
+      return []
+    }
+    throw error
+  }
   const lines = statusOutput.split('\n').filter(Boolean)
   const files: GitChangedFile[] = []
 
@@ -494,7 +545,10 @@ export async function checkoutBranch(cwd: string, branch: string): Promise<GitCo
     // If checkout fails, it might be a remote-only branch — try creating a tracking branch
     try {
       await git(cwd, 'checkout', '-b', branch, `origin/${branch}`)
-      return { success: true, message: `Created and switched to branch '${branch}' tracking origin/${branch}` }
+      return {
+        success: true,
+        message: `Created and switched to branch '${branch}' tracking origin/${branch}`
+      }
     } catch {
       return {
         success: false,
