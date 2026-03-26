@@ -15,20 +15,6 @@ html {
   padding-right: env(safe-area-inset-right);
 }
 
-/* Touch-friendly tap targets on mobile */
-@media (pointer: coarse) {
-  button, [role="button"] {
-    min-height: 44px;
-    min-width: 44px;
-  }
-
-  /* Exceptions for inline/compact buttons that already handle touch */
-  [data-icon="inline-start"],
-  .size-6 {
-    min-height: unset;
-    min-width: unset;
-  }
-}
 
 :root {
   --background: oklch(0.985 0.002 220);
