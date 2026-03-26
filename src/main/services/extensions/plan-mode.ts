@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
 import { Type } from '@sinclair/typebox'
 
-import { extractLatestPlan, normalizePlanTitle, type SavedPlan } from '../../../shared/plan'
+import { extractLatestPlan, normalizePlanTitle, type SavedPlan } from '@pi-code/shared/plan'
 
 type PlanModeStateEntry = {
   type?: string

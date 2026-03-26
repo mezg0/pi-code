@@ -1,0 +1,17 @@
+{
+  "name": "@pi-code/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./commit-message": "./src/commit-message.ts",
+    "./editor": "./src/editor.ts",
+    "./format-error": "./src/format-error.ts",
+    "./plan": "./src/plan.ts",
+    "./session": "./src/session.ts",
+    "./session-defaults": "./src/session-defaults.ts",
+    "./streaming-contract": "./src/streaming-contract.ts",
+    "./workspace": "./src/workspace.ts"
+  }
+}

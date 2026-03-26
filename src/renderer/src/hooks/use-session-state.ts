@@ -14,7 +14,7 @@ import {
   type Session,
   type SessionStreamingEvent
 } from '@/lib/sessions'
-import { cloneStreamingSnapshot } from '../../../shared/streaming-contract'
+import { cloneStreamingSnapshot } from '@pi-code/shared/streaming-contract'
 
 type UseSessionStateResult = {
   session: Session

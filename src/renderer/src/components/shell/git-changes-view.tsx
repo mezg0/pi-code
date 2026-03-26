@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import type { GitChangedFile, GitFileContents } from '../../../../shared/session'
+import type { GitChangedFile, GitFileContents } from '@pi-code/shared/session'
 
 // ─── File status helpers ────────────────────────────────────────────────────
 

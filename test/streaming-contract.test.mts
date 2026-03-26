@@ -1,11 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import type { AgentMessage } from '../src/shared/session.ts'
+import type { AgentMessage } from '@pi-code/shared/session'
 import {
   cloneStreamingSnapshot,
   shouldRenderStreamingMessage
-} from '../src/shared/streaming-contract.ts'
+} from '@pi-code/shared/streaming-contract'
 
 function assistantMessage(timestamp: number, text: string): AgentMessage {
   return {

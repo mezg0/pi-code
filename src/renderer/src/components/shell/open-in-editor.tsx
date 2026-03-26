@@ -13,8 +13,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { getShortcutDisplay, SHORTCUTS } from '@/lib/shortcuts'
-import type { EditorId } from '../../../../shared/editor'
-import { EDITORS } from '../../../../shared/editor'
+import type { EditorId } from '@pi-code/shared/editor'
+import { EDITORS } from '@pi-code/shared/editor'
 
 // ── localStorage preference ──────────────────────────────────────────
 

@@ -14,7 +14,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import type { GitBranch } from '../../../../shared/session'
+import type { GitBranch } from '@pi-code/shared/session'
 
 export function BranchPicker({
   cwd,

@@ -7,7 +7,7 @@ import {
   getPlanFromToolMessage,
   extractLatestPlan,
   getPlanMessageKey
-} from '../src/shared/plan.ts'
+} from '@pi-code/shared/plan'
 
 // ---------------------------------------------------------------------------
 // isPlanToolName

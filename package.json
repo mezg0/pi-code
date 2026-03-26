@@ -1,5 +1,9 @@
 {
   "name": "pi-code",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "version": "1.0.0",
   "description": "A desktop coding assistant powered by pi — AI chat, file browsing, git integration, and more",
   "main": "./out/main/index.js",

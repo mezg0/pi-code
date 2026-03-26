@@ -8,7 +8,7 @@ import { ActionCard, parseActionPrefix } from './action-card'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import type { AgentMessage } from '@/lib/sessions'
 import { cn } from '@/lib/utils'
-import { shouldRenderStreamingMessage } from '../../../../shared/streaming-contract'
+import { shouldRenderStreamingMessage } from '@pi-code/shared/streaming-contract'
 
 type TextBlock = { type: 'text'; text: string }
 type ImageBlock = { type: 'image'; data: string; mimeType: string }

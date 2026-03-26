@@ -52,7 +52,7 @@ import {
   type ModelInfo,
   type Session
 } from '@/lib/sessions'
-import type { AuthProviderInfo } from '../../../../shared/session'
+import type { AuthProviderInfo } from '@pi-code/shared/session'
 
 type SettingsSection = 'api-keys' | 'model-shortcuts' | 'archived-chats'
 

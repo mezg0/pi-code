@@ -36,8 +36,8 @@ import type {
   TerminalDataPayload,
   TerminalExitPayload,
   UpdateSessionInput
-} from '../shared/session'
-import type { EditorApi, EditorId } from '../shared/editor'
+} from '@pi-code/shared/session'
+import type { EditorApi, EditorId } from '@pi-code/shared/editor'
 
 const api: SessionApi = {
   projects: {

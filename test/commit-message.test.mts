@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { buildCommitMessage, parseStatusLine } from '../src/shared/commit-message.ts'
+import { buildCommitMessage, parseStatusLine } from '@pi-code/shared/commit-message'
 
 // ---------------------------------------------------------------------------
 // parseStatusLine

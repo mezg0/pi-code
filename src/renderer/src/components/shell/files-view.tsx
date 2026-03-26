@@ -27,7 +27,7 @@ function defineAppTheme(m: Monaco): void {
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import type { FileEntry } from '../../../../shared/session'
+import type { FileEntry } from '@pi-code/shared/session'
 
 // ─── Language detection ─────────────────────────────────────────────────────
 

@@ -8,7 +8,7 @@ import {
   DEFAULT_MODEL,
   NEW_SESSION_TITLE,
   deriveSessionTitle
-} from '../../shared/session-defaults'
+} from '@pi-code/shared/session-defaults'
 import { listProjects } from './projects'
 import { loadPiSdk } from './pi-sdk'
 

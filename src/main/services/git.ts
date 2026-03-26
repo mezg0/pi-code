@@ -3,7 +3,7 @@ import { promisify } from 'util'
 import { readFile, unlink } from 'fs/promises'
 import { basename, join } from 'path'
 import { homedir } from 'os'
-import { buildCommitMessage } from '../../shared/commit-message'
+import { buildCommitMessage } from '@pi-code/shared/commit-message'
 import type {
   GitStatus,
   GitCommitResult,
@@ -14,7 +14,7 @@ import type {
   GitPRStatus,
   GitStagingState,
   GitWorktreeResult
-} from '../../shared/session'
+} from '@pi-code/shared/session'
 
 export type { GitStatus, GitCommitResult, GitChangedFile, GitBranch, GitPRStatus, GitWorktreeResult }
 

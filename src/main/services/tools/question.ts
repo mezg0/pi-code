@@ -1,7 +1,7 @@
 import { BrowserWindow } from 'electron'
 import type { ToolDefinition } from '@mariozechner/pi-coding-agent'
 import { Type } from '@sinclair/typebox'
-import type { QuestionAnswer, QuestionRequest } from '../../../shared/session'
+import type { QuestionAnswer, QuestionRequest } from '@pi-code/shared/session'
 
 // ── Tool description (matches opencode's question.txt style) ────────
 

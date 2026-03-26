@@ -22,9 +22,9 @@ import type {
   SessionStreamingEvent,
   SessionStreamingPayload,
   UpdateSessionInput
-} from '../../../shared/session'
+} from '@pi-code/shared/session'
 
-export { DEFAULT_AGENT, DEFAULT_MODEL, NEW_SESSION_TITLE } from '../../../shared/session-defaults'
+export { DEFAULT_AGENT, DEFAULT_MODEL, NEW_SESSION_TITLE } from '@pi-code/shared/session-defaults'
 export type {
   AgentMessage,
   CreateSessionInput,

@@ -7,16 +7,16 @@ import type {
   ToolDefinition
 } from '@mariozechner/pi-coding-agent'
 import SYSTEM_PROMPT from './app-system-prompt.md?raw'
-import { cloneStreamingSnapshot } from '../../shared/streaming-contract'
-import { formatUserFacingError } from '../../shared/format-error'
-import { deriveSessionTitle, NEW_SESSION_TITLE } from '../../shared/session-defaults'
+import { cloneStreamingSnapshot } from '@pi-code/shared/streaming-contract'
+import { formatUserFacingError } from '@pi-code/shared/format-error'
+import { deriveSessionTitle, NEW_SESSION_TITLE } from '@pi-code/shared/session-defaults'
 import type {
   AgentMessage,
   ModelInfo,
   RpcState,
   SessionImageInput,
   SessionStreamingEvent
-} from '../../shared/session'
+} from '@pi-code/shared/session'
 import {
   deleteSession as removeSession,
   getSession,

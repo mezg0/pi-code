@@ -20,7 +20,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { sendSessionMessage } from '@/lib/sessions'
-import type { GitStatus } from '../../../../shared/session'
+import type { GitStatus } from '@pi-code/shared/session'
 
 type CommitAction = 'commit' | 'commit-push' | 'commit-pr'
 
