@@ -38,6 +38,7 @@ const EMPTY_PENDING_TOOL_CALLS = new Set<string>()
 
 // Tools grouped into a collapsible "Gathered context" row.
 const CONTEXT_GROUP_TOOLS = new Set(['read', 'grep', 'rg', 'find', 'ls'])
+const READ_ONLY_BASH_CONTEXT_COMMANDS = new Set(['rg', 'grep', 'find', 'ls'])
 
 // Tools grouped into a collapsible "Edited files" row.
 const EDIT_GROUP_TOOLS = new Set(['write', 'edit'])
@@ -52,9 +53,34 @@ type RenderRow =
   | { type: 'tool'; key: string; toolCall: ToolCallBlock; pending: boolean }
   | { type: 'toolGroup'; key: string; group: ToolGroupKind; tools: ToolEntry[] }
 
-function toolGroupKind(name: string): ToolGroupKind | null {
-  if (CONTEXT_GROUP_TOOLS.has(name)) return 'context'
-  if (EDIT_GROUP_TOOLS.has(name)) return 'edit'
+function getReadOnlyBashContextCommand(args: unknown): string | null {
+  if (!args || typeof args !== 'object') return null
+
+  const command =
+    typeof (args as Record<string, unknown>).command === 'string'
+      ? (args as Record<string, unknown>).command.trim()
+      : ''
+  if (!command) return null
+
+  // Only group simple, single read-only commands. Anything with shell control
+  // operators or redirection stays as an individual Shell row.
+  if (/[;&|<>\n]/.test(command)) return null
+
+  const match = command.match(/^([A-Za-z0-9._-]+)/)
+  const baseCommand = match?.[1]
+  if (!baseCommand || !READ_ONLY_BASH_CONTEXT_COMMANDS.has(baseCommand)) {
+    return null
+  }
+
+  return baseCommand
+}
+
+function toolGroupKind(toolCall: ToolCallBlock): ToolGroupKind | null {
+  if (CONTEXT_GROUP_TOOLS.has(toolCall.name)) return 'context'
+  if (toolCall.name === 'bash' && getReadOnlyBashContextCommand(toolCall.arguments)) {
+    return 'context'
+  }
+  if (EDIT_GROUP_TOOLS.has(toolCall.name)) return 'edit'
   return null
 }
 
@@ -101,7 +127,7 @@ function buildRenderRows(
     const block = blocks[i] as ContentBlock
 
     if (isToolCallBlock(block)) {
-      const kind = toolGroupKind(block.name)
+      const kind = toolGroupKind(block)
       if (kind !== null) {
         // If the kind changed, flush the previous run first
         if (currentKind !== null && currentKind !== kind) {
@@ -398,21 +424,40 @@ const ToolCallRowComponent = memo(function ToolCallRowComponent({
   )
 })
 
+function getContextToolCategory(toolCall: ToolCallBlock): 'read' | 'search' | 'list' | null {
+  switch (toolCall.name) {
+    case 'read':
+      return 'read'
+    case 'grep':
+    case 'rg':
+    case 'find':
+      return 'search'
+    case 'ls':
+      return 'list'
+    case 'bash': {
+      const command = getReadOnlyBashContextCommand(toolCall.arguments)
+      if (command === 'ls') return 'list'
+      if (command === 'grep' || command === 'rg' || command === 'find') return 'search'
+      return null
+    }
+    default:
+      return null
+  }
+}
+
 function contextGroupSummary(tools: ToolEntry[]): string {
   let reads = 0
   let searches = 0
   let lists = 0
   for (const { toolCall } of tools) {
-    switch (toolCall.name) {
+    switch (getContextToolCategory(toolCall)) {
       case 'read':
         reads++
         break
-      case 'grep':
-      case 'rg':
-      case 'find':
+      case 'search':
         searches++
         break
-      case 'ls':
+      case 'list':
         lists++
         break
     }
