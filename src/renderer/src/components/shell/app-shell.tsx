@@ -10,8 +10,10 @@ import {
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Drawer } from 'vaul'
 import {
+  ExternalLinkIcon,
   GitBranchIcon,
   GitCommitHorizontalIcon,
+  GitPullRequestIcon,
   MenuIcon,
   PanelRightCloseIcon,
   PanelRightOpenIcon
@@ -98,6 +100,7 @@ export function AppShell({
   )
   const sessionGroups = useMemo(() => groupSessions(projects, sessions), [projects, sessions])
   const prStatusMap = usePRStatus(sessions)
+  const activePRStatus = activeSession ? prStatusMap.get(activeSession.id) : undefined
   // Use the worktree path when available so each workspace gets its own tool state
   const activeEffectivePath = activeSession?.worktreePath ?? activeSession?.repoPath
   const activeToolTab = activeEffectivePath
@@ -181,6 +184,7 @@ export function AppShell({
         toggleToolPanel={toggleToolPanel}
         rememberActiveToolTab={rememberActiveToolTab}
         activeSession={activeSession}
+        activePRUrl={activePRStatus?.url ?? null}
       >
         {children}
       </AppShellContent>
@@ -197,6 +201,7 @@ function AppShellContent({
   toggleToolPanel,
   rememberActiveToolTab,
   activeSession,
+  activePRUrl,
   children
 }: {
   title: string
@@ -207,6 +212,7 @@ function AppShellContent({
   toggleToolPanel: () => void
   rememberActiveToolTab: (tab: ToolTab) => void
   activeSession: Session | null
+  activePRUrl: string | null
   children: ReactNode
 }): React.JSX.Element {
   const { state, toggleSidebar } = useSidebar()
@@ -447,6 +453,21 @@ function AppShellContent({
               ) : null}
               <BranchPicker cwd={cwd} currentBranch={branchName} disabled={hasChanges} />
 
+              {activePRUrl ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button asChild variant="outline" size="sm" className="no-drag shrink-0">
+                      <a href={activePRUrl} target="_blank" rel="noreferrer">
+                        <GitPullRequestIcon data-icon="inline-start" />
+                        View PR
+                        <ExternalLinkIcon data-icon="inline-end" className="size-3 text-muted-foreground" />
+                      </a>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Open pull request</TooltipContent>
+                </Tooltip>
+              ) : null}
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -493,8 +514,15 @@ function AppShellContent({
           ) : null}
         </div>
 
-        {/* Mobile header actions — single icon */}
+        {/* Mobile header actions */}
         <div className="flex items-center gap-1 md:hidden">
+          {activePRUrl ? (
+            <Button asChild variant="ghost" size="icon-sm" className="no-drag shrink-0">
+              <a href={activePRUrl} target="_blank" rel="noreferrer" aria-label="Open pull request">
+                <GitPullRequestIcon />
+              </a>
+            </Button>
+          ) : null}
           {cwd && showPanelToggle ? (
             <Button
               variant="ghost"
