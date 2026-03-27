@@ -131,17 +131,17 @@ export const askUserQuestionTool: ToolDefinition<typeof QUESTION_PARAMS, Questio
     'Do not use this tool for simple yes/no confirmations that can be inferred from context.'
   ],
   parameters: QUESTION_PARAMS,
-  async execute(_toolCallId, params, signal) {
+  async execute(toolCallId, params, signal) {
     if (!params.questions.length) {
       throw new Error('At least one question is required.')
     }
 
     const requestId = generateRequestId()
+    const sessionId = takeQuestionToolCallSession(toolCallId)
 
-    // We need to figure out the sessionId. Unfortunately the tool execute
-    // signature for custom tools doesn't expose the session context.
-    // We'll use a module-level sessionId that gets set before tool execution.
-    const sessionId = currentSessionId ?? 'unknown'
+    if (!sessionId) {
+      throw new Error('Question tool lost its session context. Please retry.')
+    }
 
     const request: QuestionRequest = {
       id: requestId,
@@ -204,14 +204,16 @@ export const askUserQuestionTool: ToolDefinition<typeof QUESTION_PARAMS, Questio
   }
 }
 
-// ── Session context for tool execution ──────────────────────────────
+// ── Tool-call session context ───────────────────────────────────────
 
-let currentSessionId: string | null = null
+const toolCallSessions = new Map<string, string>()
 
-/**
- * Set the current session ID before a tool execution.
- * This is needed because custom tools don't receive session context.
- */
-export function setCurrentSessionId(sessionId: string | null): void {
-  currentSessionId = sessionId
+export function registerQuestionToolCallSession(toolCallId: string, sessionId: string): void {
+  toolCallSessions.set(toolCallId, sessionId)
+}
+
+function takeQuestionToolCallSession(toolCallId: string): string | null {
+  const sessionId = toolCallSessions.get(toolCallId) ?? null
+  toolCallSessions.delete(toolCallId)
+  return sessionId
 }

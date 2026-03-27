@@ -36,11 +36,7 @@ import {
 } from './tools/permission'
 import type { PermissionMode } from '@pi-code/shared/session'
 import { webFetchTool } from './tools/webfetch'
-import {
-  askUserQuestionTool,
-  rejectAllQuestionsForSession,
-  setCurrentSessionId
-} from './tools/question'
+import { askUserQuestionTool, rejectAllQuestionsForSession } from './tools/question'
 
 type PlanModeStateEntry = {
   type?: string
@@ -477,9 +473,6 @@ export async function sendSessionMessage(
       data: image.data,
       mimeType: image.mimeType
     }))
-
-    // Set the current session ID so question tools know which session they're in
-    setCurrentSessionId(sessionId)
 
     if (agentSession.isStreaming) {
       await agentSession.prompt(text, { streamingBehavior: 'steer', images: piImages })

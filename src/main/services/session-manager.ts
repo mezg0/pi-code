@@ -193,20 +193,20 @@ export function getSessionFile(id: string): string | undefined {
   return sessionFiles.get(id)
 }
 
-export function getSessionIdForFile(sessionFile: string): string | undefined {
-  const target = resolve(sessionFile)
+export function setSessionFile(id: string, sessionFile: string): void {
+  sessionFiles.set(id, sessionFile)
+}
 
-  for (const [sessionId, candidate] of sessionFiles) {
-    if (resolve(candidate) === target) {
-      return sessionId
+export function getSessionIdForFile(sessionFile: string): string | undefined {
+  const resolvedSessionFile = resolve(sessionFile)
+
+  for (const [id, file] of sessionFiles) {
+    if (file === sessionFile || resolve(file) === resolvedSessionFile) {
+      return id
     }
   }
 
   return undefined
-}
-
-export function setSessionFile(id: string, sessionFile: string): void {
-  sessionFiles.set(id, sessionFile)
 }
 
 export async function createSession(input: CreateSessionInput): Promise<Session> {

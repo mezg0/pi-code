@@ -14,6 +14,7 @@ import {
   registerPermissionModeController,
   unregisterPermissionModeController
 } from '../tools/permission'
+import { registerQuestionToolCallSession } from '../tools/question'
 
 type PermissionModeEntry = {
   type?: string
@@ -381,6 +382,10 @@ export default function permissionExtension(pi: ExtensionAPI): void {
   pi.on('tool_call', async (event) => {
     const sessionId = registeredSessionId ?? resolveSessionId()
     if (!sessionId) return
+
+    if (event.toolName === 'ask_user_question') {
+      registerQuestionToolCallSession(event.toolCallId, sessionId)
+    }
 
     const session = await getSession(sessionId)
     if (!session) return
