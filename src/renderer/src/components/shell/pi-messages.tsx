@@ -4,7 +4,7 @@ import { ChevronRightIcon } from 'lucide-react'
 import { Shimmer } from '@/components/ai-elements/shimmer'
 
 import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message'
-import { ActionCard, parseActionPrefix } from './action-card'
+import { ActionCard, type ActionType } from './action-card'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import type { AgentMessage } from '@/lib/sessions'
 import { cn } from '@/lib/utils'
@@ -130,6 +130,23 @@ function buildRenderRows(
 
   flushRun()
   return rows
+}
+
+function parseActionPrefix(
+  text: string
+): { type: ActionType; metadata: Record<string, unknown>; instruction: string } | null {
+  const match = text.match(/^<!--action:(\w[\w-]*):({.*?})-->\n?/)
+  if (!match) return null
+
+  try {
+    return {
+      type: match[1] as ActionType,
+      metadata: JSON.parse(match[2]),
+      instruction: text.slice(match[0].length)
+    }
+  } catch {
+    return null
+  }
 }
 
 /**

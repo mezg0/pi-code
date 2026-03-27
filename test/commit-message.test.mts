@@ -73,24 +73,15 @@ test('single modified file', () => {
 // Multi-file summaries
 
 test('multiple added files', () => {
-  assert.equal(
-    buildCommitMessage(['?? a.ts', '?? b.ts']),
-    'Add 2 files'
-  )
+  assert.equal(buildCommitMessage(['?? a.ts', '?? b.ts']), 'Add 2 files')
 })
 
 test('multiple modified files', () => {
-  assert.equal(
-    buildCommitMessage([' M a.ts', ' M b.ts', ' M c.ts']),
-    'Update 3 files'
-  )
+  assert.equal(buildCommitMessage([' M a.ts', ' M b.ts', ' M c.ts']), 'Update 3 files')
 })
 
 test('mixed added and modified', () => {
-  assert.equal(
-    buildCommitMessage(['?? new.ts', ' M existing.ts']),
-    'Add 1 file, update 1 file'
-  )
+  assert.equal(buildCommitMessage(['?? new.ts', ' M existing.ts']), 'Add 1 file, update 1 file')
 })
 
 test('mixed added, modified, and deleted', () => {

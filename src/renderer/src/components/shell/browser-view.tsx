@@ -114,9 +114,7 @@ export function BrowserView({ id }: { id: string }): React.JSX.Element {
     if (!webview) return
 
     webview
-      .executeJavaScript(
-        `if (window.__REACT_GRAB__) { window.__REACT_GRAB__.toggle(); }`
-      )
+      .executeJavaScript(`if (window.__REACT_GRAB__) { window.__REACT_GRAB__.toggle(); }`)
       .catch(() => {})
   }, [])
 
@@ -244,9 +242,7 @@ export function BrowserView({ id }: { id: string }): React.JSX.Element {
               <CrosshairIcon />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>
-            {grabActive ? 'Exit' : 'Enter'} element grab mode
-          </TooltipContent>
+          <TooltipContent>{grabActive ? 'Exit' : 'Enter'} element grab mode</TooltipContent>
         </Tooltip>
 
         <NavButton tooltip="Open in browser" disabled={!url} onClick={handleOpenExternal}>

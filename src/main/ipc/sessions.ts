@@ -19,10 +19,7 @@ import {
   steerSession
 } from '../services/pi-runner'
 import { replyToQuestion, rejectQuestion } from '../services/tools/question'
-import {
-  getPendingPermission,
-  replyToPermission
-} from '../services/tools/permission'
+import { getPendingPermission, replyToPermission } from '../services/tools/permission'
 import type { QuestionAnswer, PermissionMode, PermissionResponse } from '@pi-code/shared/session'
 
 export function registerSessionIpc(): void {
@@ -61,9 +58,8 @@ export function registerSessionIpc(): void {
   ipcMain.handle('sessions:pendingQuestion', (_event, sessionId: string) =>
     getPendingQuestion(sessionId)
   )
-  ipcMain.handle(
-    'sessions:questionReply',
-    (_event, requestId: string, answers: QuestionAnswer[]) => replyToQuestion(requestId, answers)
+  ipcMain.handle('sessions:questionReply', (_event, requestId: string, answers: QuestionAnswer[]) =>
+    replyToQuestion(requestId, answers)
   )
   ipcMain.handle('sessions:questionReject', (_event, requestId: string) =>
     rejectQuestion(requestId)
@@ -79,9 +75,7 @@ export function registerSessionIpc(): void {
   ipcMain.handle('sessions:getPermissionMode', (_event, sessionId: string) =>
     getPermissionMode(sessionId)
   )
-  ipcMain.handle(
-    'sessions:setPermissionMode',
-    (_event, sessionId: string, mode: PermissionMode) =>
-      setPermissionMode(sessionId, mode)
+  ipcMain.handle('sessions:setPermissionMode', (_event, sessionId: string, mode: PermissionMode) =>
+    setPermissionMode(sessionId, mode)
   )
 }

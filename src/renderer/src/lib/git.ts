@@ -19,13 +19,10 @@ export type {
   GitWorktreeResult
 }
 
-const qs = (params: Record<string, string>) =>
-  '?' + new URLSearchParams(params).toString()
+const qs = (params: Record<string, string>): string => '?' + new URLSearchParams(params).toString()
 
-export const isGitRepo = (cwd: string): Promise<boolean> =>
-  apiGet(`/git/is-repo${qs({ cwd })}`)
-export const getGitStatus = (cwd: string): Promise<GitStatus> =>
-  apiGet(`/git/status${qs({ cwd })}`)
+export const isGitRepo = (cwd: string): Promise<boolean> => apiGet(`/git/is-repo${qs({ cwd })}`)
+export const getGitStatus = (cwd: string): Promise<GitStatus> => apiGet(`/git/status${qs({ cwd })}`)
 export const getChangedFiles = (cwd: string): Promise<GitChangedFile[]> =>
   apiGet(`/git/changed-files${qs({ cwd })}`)
 export const getGitFileContents = (cwd: string, filePath: string): Promise<GitFileContents> =>
@@ -67,8 +64,7 @@ export const createGitWorktree = (
   branch: string,
   newBranch?: string,
   path?: string | null
-): Promise<GitWorktreeResult> =>
-  apiPost('/git/create-worktree', { cwd, branch, newBranch, path })
+): Promise<GitWorktreeResult> => apiPost('/git/create-worktree', { cwd, branch, newBranch, path })
 export const removeGitWorktree = (
   cwd: string,
   worktreePath: string,

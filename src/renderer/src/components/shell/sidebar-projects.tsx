@@ -120,10 +120,7 @@ export function SidebarProjects({
                     </SidebarGroupLabel>
                   </CollapsibleTrigger>
                   <div className="flex items-center gap-0.5">
-                    <NewSessionButton
-                      project={group.project}
-                      onCreateSession={onCreateSession}
-                    />
+                    <NewSessionButton project={group.project} onCreateSession={onCreateSession} />
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon-xs">
@@ -289,10 +286,7 @@ function NewSessionButton({
         worktreePath: result.path
       })
     } catch (err) {
-      // eslint-disable-next-line no-restricted-globals
-      alert(
-        `Failed to create worktree: ${err instanceof Error ? err.message : String(err)}`
-      )
+      alert(`Failed to create worktree: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setCreating(false)
     }
@@ -335,71 +329,68 @@ function NewSessionButton({
 
   return (
     <>
-    <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={(e) => {
-                // Left-click creates a session immediately (existing behavior)
-                e.preventDefault()
-                void onCreateSession(project)
-              }}
-              onContextMenu={(e) => {
-                e.preventDefault()
-                setMenuOpen(true)
-              }}
-            >
-              <PlusIcon />
-            </Button>
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
-        <TooltipContent side="right">
-          New session{' '}
-          <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">
-            {getShortcutDisplay('new-session')}
-          </kbd>
-          <br />
-          <span className="text-[10px] opacity-60">Right-click for worktree options</span>
-        </TooltipContent>
-      </Tooltip>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={(e) => {
+                  // Left-click creates a session immediately (existing behavior)
+                  e.preventDefault()
+                  void onCreateSession(project)
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  setMenuOpen(true)
+                }}
+              >
+                <PlusIcon />
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            New session{' '}
+            <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">
+              {getShortcutDisplay('new-session')}
+            </kbd>
+            <br />
+            <span className="text-[10px] opacity-60">Right-click for worktree options</span>
+          </TooltipContent>
+        </Tooltip>
 
-      <DropdownMenuContent side="right" align="start" className="w-56">
-        <DropdownMenuItem onClick={() => void onCreateSession(project)}>
-          <PlusIcon className="size-3.5" />
-          New session
-        </DropdownMenuItem>
+        <DropdownMenuContent side="right" align="start" className="w-56">
+          <DropdownMenuItem onClick={() => void onCreateSession(project)}>
+            <PlusIcon className="size-3.5" />
+            New session
+          </DropdownMenuItem>
 
-        {loading ? (
-          <>
-            <DropdownMenuSeparator />
-            <div className="flex items-center justify-center py-3">
-              <LoaderIcon className="size-3.5 animate-spin text-muted-foreground" />
-            </div>
-          </>
-        ) : branches.length > 0 ? (
-          <>
-            <DropdownMenuSeparator />
+          {loading ? (
+            <>
+              <DropdownMenuSeparator />
+              <div className="flex items-center justify-center py-3">
+                <LoaderIcon className="size-3.5 animate-spin text-muted-foreground" />
+              </div>
+            </>
+          ) : branches.length > 0 ? (
+            <>
+              <DropdownMenuSeparator />
 
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger disabled={creating}>
-                <GitBranchIcon className="size-3.5" />
-                New worktree session
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="max-h-72 overflow-y-auto w-60">
-                <DropdownMenuItem
-                  disabled={creating}
-                  onClick={openNewBranchDialog}
-                >
-                  <PlusIcon className="size-3 text-muted-foreground" />
-                  <span>Create new branch…</span>
-                </DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger disabled={creating}>
+                  <GitBranchIcon className="size-3.5" />
+                  New worktree session
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="max-h-72 overflow-y-auto w-60">
+                  <DropdownMenuItem disabled={creating} onClick={openNewBranchDialog}>
+                    <PlusIcon className="size-3 text-muted-foreground" />
+                    <span>Create new branch…</span>
+                  </DropdownMenuItem>
 
-                <DropdownMenuSeparator />
+                  <DropdownMenuSeparator />
 
-                {branches.map((branch) => (
+                  {branches.map((branch) => (
                     <DropdownMenuItem
                       key={branch.name}
                       disabled={creating}
@@ -409,64 +400,56 @@ function NewSessionButton({
                       <span className="truncate">{branch.name}</span>
                     </DropdownMenuItem>
                   ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          </>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
-
-    <Dialog open={newBranchDialogOpen} onOpenChange={setNewBranchDialogOpen}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>New worktree branch</DialogTitle>
-          <DialogDescription>
-            Creates a new branch off the current branch and opens it in an isolated worktree.
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            void handleCreateNewBranchWorktree()
-          }}
-        >
-          <Input
-            autoFocus
-            placeholder="feature/my-branch"
-            value={newBranchName}
-            onChange={(e) => {
-              setNewBranchName(e.currentTarget.value)
-              setNewBranchError(null)
-            }}
-            className="mb-3"
-          />
-          {newBranchError ? (
-            <p className="mb-3 text-xs text-destructive">{newBranchError}</p>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            </>
           ) : null}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setNewBranchDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={!newBranchName.trim() || creating}
-            >
-              {creating ? (
-                <LoaderIcon className="size-3.5 animate-spin" />
-              ) : (
-                'Create'
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={newBranchDialogOpen} onOpenChange={setNewBranchDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>New worktree branch</DialogTitle>
+            <DialogDescription>
+              Creates a new branch off the current branch and opens it in an isolated worktree.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              void handleCreateNewBranchWorktree()
+            }}
+          >
+            <Input
+              autoFocus
+              placeholder="feature/my-branch"
+              value={newBranchName}
+              onChange={(e) => {
+                setNewBranchName(e.currentTarget.value)
+                setNewBranchError(null)
+              }}
+              className="mb-3"
+            />
+            {newBranchError ? (
+              <p className="mb-3 text-xs text-destructive">{newBranchError}</p>
+            ) : null}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setNewBranchDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" disabled={!newBranchName.trim() || creating}>
+                {creating ? <LoaderIcon className="size-3.5 animate-spin" /> : 'Create'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

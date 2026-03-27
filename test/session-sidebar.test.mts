@@ -5,10 +5,7 @@ import { hasUnseenSessionCompletion } from '../src/renderer/src/lib/session-side
 
 type SessionInput = Parameters<typeof hasUnseenSessionCompletion>[0]
 
-function makeSession(
-  status: SessionInput['status'],
-  updatedAt: string
-): SessionInput {
+function makeSession(status: SessionInput['status'], updatedAt: string): SessionInput {
   return { id: 'test-id', status, updatedAt }
 }
 

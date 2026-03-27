@@ -33,6 +33,31 @@ export const QuestionDock = memo(function QuestionDock({
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  const handleReply = useCallback(
+    async (overrideAnswers?: QuestionAnswer[]): Promise<void> => {
+      if (sending) return
+      setSending(true)
+      try {
+        await questionReply(request.id, overrideAnswers ?? answers)
+        onDone()
+      } catch {
+        setSending(false)
+      }
+    },
+    [answers, onDone, request.id, sending]
+  )
+
+  const handleReject = useCallback(async (): Promise<void> => {
+    if (sending) return
+    setSending(true)
+    try {
+      await questionReject(request.id)
+      onDone()
+    } catch {
+      setSending(false)
+    }
+  }, [onDone, request.id, sending])
+
   // Focus textarea when editing starts
   useEffect(() => {
     if (editing && textareaRef.current) {
@@ -54,24 +79,22 @@ export const QuestionDock = memo(function QuestionDock({
         }
       }
     }
+
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [sending, editing]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [editing, handleReject, sending])
 
   const currentAnswers = answers[tab] ?? []
   const customText = customTexts[tab] ?? ''
   const customPicked = customText.trim() !== '' && currentAnswers.includes(customText.trim())
 
-  const setAnswerForTab = useCallback(
-    (tabIndex: number, newAnswer: QuestionAnswer) => {
-      setAnswers((prev) => {
-        const next = [...prev]
-        next[tabIndex] = newAnswer
-        return next
-      })
-    },
-    []
-  )
+  const setAnswerForTab = useCallback((tabIndex: number, newAnswer: QuestionAnswer) => {
+    setAnswers((prev) => {
+      const next = [...prev]
+      next[tabIndex] = newAnswer
+      return next
+    })
+  }, [])
 
   const setCustomForTab = useCallback((tabIndex: number, text: string) => {
     setCustomTexts((prev) => {
@@ -83,28 +106,6 @@ export const QuestionDock = memo(function QuestionDock({
 
   // ── Actions ─────────────────────────────────────────────────────
 
-  async function handleReply(overrideAnswers?: QuestionAnswer[]): Promise<void> {
-    if (sending) return
-    setSending(true)
-    try {
-      await questionReply(request.id, overrideAnswers ?? answers)
-      onDone()
-    } catch {
-      setSending(false)
-    }
-  }
-
-  async function handleReject(): Promise<void> {
-    if (sending) return
-    setSending(true)
-    try {
-      await questionReject(request.id)
-      onDone()
-    } catch {
-      setSending(false)
-    }
-  }
-
   function pickSingle(label: string): void {
     const nextAnswers = [...answers]
     nextAnswers[tab] = [label]
@@ -114,7 +115,9 @@ export const QuestionDock = memo(function QuestionDock({
       // (React state won't have flushed yet, so we can't read `answers`)
       setAnswers(nextAnswers)
       setSending(true)
-      void questionReply(request.id, nextAnswers).then(onDone).catch(() => setSending(false))
+      void questionReply(request.id, nextAnswers)
+        .then(onDone)
+        .catch(() => setSending(false))
       return
     }
 
@@ -401,9 +404,7 @@ const OptionRow = memo(function OptionRow({
           <span
             className={cn(
               'flex size-3.5 items-center justify-center rounded-full border transition-colors',
-              picked
-                ? 'border-primary bg-primary'
-                : 'border-muted-foreground/40'
+              picked ? 'border-primary bg-primary' : 'border-muted-foreground/40'
             )}
           >
             {picked && <span className="size-1.5 rounded-full bg-primary-foreground" />}

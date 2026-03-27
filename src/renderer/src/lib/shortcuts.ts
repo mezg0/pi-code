@@ -52,7 +52,7 @@ export const SHORTCUTS = {
   'model-9': { label: 'Model shortcut 9', keys: 'Mod+Shift+9' },
 
   // Context-specific
-  'save-file': { label: 'Save file', keys: 'Mod+S' },
+  'save-file': { label: 'Save file', keys: 'Mod+S' }
 } as const satisfies Record<string, ShortcutDef>
 
 export type ShortcutId = keyof typeof SHORTCUTS

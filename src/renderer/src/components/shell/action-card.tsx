@@ -17,7 +17,13 @@ type ActionCardProps = {
   className?: string
 }
 
-function CommitPrCard({ metadata, className }: { metadata: CommitPrMetadata; className?: string }) {
+function CommitPrCard({
+  metadata,
+  className
+}: {
+  metadata: CommitPrMetadata
+  className?: string
+}): React.JSX.Element {
   return (
     <div className={cn('flex flex-col gap-2 px-4 py-3', className)}>
       <div className="flex items-center gap-2.5">
@@ -57,32 +63,7 @@ export function ActionCard({ type, metadata, className }: ActionCardProps): Reac
         className
       )}
     >
-      {type === 'commit-pr' && (
-        <CommitPrCard metadata={metadata as unknown as CommitPrMetadata} />
-      )}
+      {type === 'commit-pr' && <CommitPrCard metadata={metadata as unknown as CommitPrMetadata} />}
     </motion.div>
   )
-}
-
-/**
- * Parse an action prefix from a user message.
- * Returns the action type, metadata, and the remaining instruction text,
- * or null if the message is not an action message.
- *
- * Format: `<!--action:type:{"json":"metadata"}-->\ninstruction text`
- */
-export function parseActionPrefix(
-  text: string
-): { type: ActionType; metadata: Record<string, unknown>; instruction: string } | null {
-  const match = text.match(/^<!--action:(\w[\w-]*):({.*?})-->\n?/)
-  if (!match) return null
-  try {
-    return {
-      type: match[1] as ActionType,
-      metadata: JSON.parse(match[2]),
-      instruction: text.slice(match[0].length)
-    }
-  } catch {
-    return null
-  }
 }

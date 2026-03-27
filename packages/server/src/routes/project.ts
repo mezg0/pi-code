@@ -1,5 +1,9 @@
 import { Hono } from 'hono'
-import { addProjectByPath, listProjects, removeProject } from '../../../../src/main/services/projects'
+import {
+  addProjectByPath,
+  listProjects,
+  removeProject
+} from '../../../../src/main/services/projects'
 
 export function createProjectRoutes(): Hono {
   const app = new Hono()

@@ -1,6 +1,5 @@
 import { shell, BrowserWindow } from 'electron'
 import { publishServerEvent } from '@pi-code/server/event-bus'
-import { ensureBuiltinOAuthProvidersRegistered } from './extensions/builtin'
 import { loadPiSdk } from './pi-sdk'
 
 import type { AuthStorage } from '@mariozechner/pi-coding-agent'

@@ -65,16 +65,11 @@ export function loadProjectViewState(repoPath: string): ProjectViewState {
   return {
     toolTab: stored.toolTab ?? DEFAULT_PROJECT_VIEW_STATE.toolTab,
     toolPanelOpen:
-      typeof stored.toolPanelOpen === 'boolean'
-        ? stored.toolPanelOpen
-        : Boolean(stored.toolTab)
+      typeof stored.toolPanelOpen === 'boolean' ? stored.toolPanelOpen : Boolean(stored.toolTab)
   }
 }
 
-export function saveProjectViewState(
-  repoPath: string,
-  patch: Partial<ProjectViewState>
-): void {
+export function saveProjectViewState(repoPath: string, patch: Partial<ProjectViewState>): void {
   const map = loadMap()
   const current = map[repoPath] ?? { ...DEFAULT_PROJECT_VIEW_STATE }
   map[repoPath] = { ...current, ...patch }

@@ -24,11 +24,10 @@ import {
 } from './services/remote-access'
 
 let piServer: PiServer | null = null
-let sidecarServerReady: Promise<void>
-let resolveSidecarReady: () => void
+let resolveSidecarReady!: () => void
 let remoteConfig: RemoteAccessConfig = { enabled: false, port: 4311, password: null }
 
-sidecarServerReady = new Promise<void>((resolve) => {
+const sidecarServerReady = new Promise<void>((resolve) => {
   resolveSidecarReady = resolve
 })
 
@@ -130,7 +129,9 @@ app.whenReady().then(() => {
         password: password ?? undefined
       })
 
-      console.info(`[main] remote access enabled on ${remote.url}${password ? ' (password protected)' : ' (no password)'}`)
+      console.info(
+        `[main] remote access enabled on ${remote.url}${password ? ' (password protected)' : ' (no password)'}`
+      )
 
       return {
         enabled: true,
@@ -161,9 +162,10 @@ app.whenReady().then(() => {
         hostname: '127.0.0.1',
         port: Number(process.env.PI_SERVER_PORT ?? '4310'),
         webRoot,
-        devProxy: is.dev && process.env.ELECTRON_RENDERER_URL
-          ? process.env.ELECTRON_RENDERER_URL
-          : undefined
+        devProxy:
+          is.dev && process.env.ELECTRON_RENDERER_URL
+            ? process.env.ELECTRON_RENDERER_URL
+            : undefined
       })
       piServer = server
       console.info(`[main] local server listening on ${server.local.url}`)
@@ -203,7 +205,6 @@ app.on('before-quit', () => {
     console.error('[main] Failed to stop server:', error)
   })
 
-  disposeBuiltinProviderBootstrap()
   disposeAllBrowsers()
   disposeAllTerminals()
   disposeAllSessions()
