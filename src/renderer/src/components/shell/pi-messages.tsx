@@ -385,7 +385,7 @@ const ThinkingRowComponent = memo(function ThinkingRowComponent({
         <ChevronRightIcon
           className={cn('size-3.5 shrink-0 transition-transform duration-200', open && 'rotate-90')}
         />
-        <span className={streaming ? 'animate-pulse' : ''}>Thinking…</span>
+        <span className={streaming ? 'animate-pulse' : ''}>Thinking</span>
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="ml-6 mt-1 mb-2">
