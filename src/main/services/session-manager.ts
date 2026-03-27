@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import { mkdir, readFile, writeFile } from 'fs/promises'
-import { dirname, join } from 'path'
+import { dirname, join, resolve } from 'path'
 import { app } from 'electron'
 import type { CreateSessionInput, Project, Session, UpdateSessionInput } from '../types/session'
 import {
@@ -191,6 +191,18 @@ export async function getSession(id: string): Promise<Session | undefined> {
 
 export function getSessionFile(id: string): string | undefined {
   return sessionFiles.get(id)
+}
+
+export function getSessionIdForFile(sessionFile: string): string | undefined {
+  const target = resolve(sessionFile)
+
+  for (const [sessionId, candidate] of sessionFiles) {
+    if (resolve(candidate) === target) {
+      return sessionId
+    }
+  }
+
+  return undefined
 }
 
 export function setSessionFile(id: string, sessionFile: string): void {

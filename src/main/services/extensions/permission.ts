@@ -4,14 +4,13 @@ import path from 'path'
 import { createTwoFilesPatch } from 'diff'
 import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
 import type { PermissionMode } from '@pi-code/shared/session'
-import { getSession } from '../session-manager'
+import { getSession, getSessionIdForFile } from '../session-manager'
 import {
   arePatternsAlwaysApproved,
   askPermission,
   approveAllPermissionsForSession,
   deriveAlwaysPatterns,
   derivePattern,
-  getCurrentPermissionSessionId,
   registerPermissionModeController,
   unregisterPermissionModeController
 } from '../tools/permission'
@@ -372,13 +371,20 @@ async function buildToolRequestOptions(
 export default function permissionExtension(pi: ExtensionAPI): void {
   let permissionMode: PermissionMode = 'ask'
   let registeredSessionFile: string | null = null
+  let registeredSessionId: string | null = null
+
+  const resolveSessionId = (): string | null => {
+    if (!registeredSessionFile) return null
+    return getSessionIdForFile(registeredSessionFile) ?? null
+  }
 
   pi.on('tool_call', async (event) => {
-    const sessionId = getCurrentPermissionSessionId()
+    const sessionId = registeredSessionId ?? resolveSessionId()
     if (!sessionId) return
 
     const session = await getSession(sessionId)
     if (!session) return
+    registeredSessionId = sessionId
 
     const root = session.worktreePath ?? session.repoPath
     const rootReal = await canonicalizePath(root)
@@ -417,6 +423,7 @@ export default function permissionExtension(pi: ExtensionAPI): void {
   pi.on('session_start', async (_event, ctx) => {
     const sessionFile = ctx.sessionManager.getSessionFile?.() ?? null
     registeredSessionFile = sessionFile
+    registeredSessionId = sessionFile ? getSessionIdForFile(sessionFile) ?? null : null
 
     const lastEntry = ctx.sessionManager
       .getEntries()
@@ -438,8 +445,9 @@ export default function permissionExtension(pi: ExtensionAPI): void {
           pi.appendEntry('permission-mode', { mode })
 
           if (mode === 'auto' && oldMode !== 'auto') {
-            const sessionId = getCurrentPermissionSessionId()
+            const sessionId = registeredSessionId ?? resolveSessionId()
             if (sessionId) {
+              registeredSessionId = sessionId
               approveAllPermissionsForSession(sessionId)
             }
           }
@@ -453,5 +461,6 @@ export default function permissionExtension(pi: ExtensionAPI): void {
       unregisterPermissionModeController(registeredSessionFile)
       registeredSessionFile = null
     }
+    registeredSessionId = null
   })
 }
