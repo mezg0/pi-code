@@ -4,6 +4,7 @@ import path from 'path'
 import { createTwoFilesPatch } from 'diff'
 import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
 import type { PermissionMode } from '@pi-code/shared/session'
+import { getCachedDefaultPermissionMode, getAppSettings } from '../settings'
 import { getSession, getSessionIdForFile } from '../session-manager'
 import {
   arePatternsAlwaysApproved,
@@ -369,9 +370,13 @@ async function buildToolRequestOptions(
 }
 
 export default function permissionExtension(pi: ExtensionAPI): void {
-  let permissionMode: PermissionMode = 'ask'
+  let permissionModeOverride: PermissionMode | null = null
   let registeredSessionFile: string | null = null
   let registeredSessionId: string | null = null
+
+  function getCurrentPermissionMode(): PermissionMode {
+    return permissionModeOverride ?? getCachedDefaultPermissionMode()
+  }
 
   const resolveSessionId = (): string | null => {
     if (!registeredSessionFile) return null
@@ -405,7 +410,7 @@ export default function permissionExtension(pi: ExtensionAPI): void {
         await askPermission(sessionId, event.toolName, event.toolCallId, input, externalRequest)
       }
 
-      const action = getActionForTool(event.toolName, permissionMode)
+      const action = getActionForTool(event.toolName, getCurrentPermissionMode())
       if (action === 'allow') return
 
       const request = await buildToolRequestOptions(event.toolName, input, root)
@@ -425,6 +430,8 @@ export default function permissionExtension(pi: ExtensionAPI): void {
     registeredSessionFile = sessionFile
     registeredSessionId = sessionFile ? getSessionIdForFile(sessionFile) ?? null : null
 
+    await getAppSettings()
+
     const lastEntry = ctx.sessionManager
       .getEntries()
       .filter(
@@ -434,14 +441,14 @@ export default function permissionExtension(pi: ExtensionAPI): void {
       )
       .pop() as PermissionModeEntry | undefined
 
-    permissionMode = lastEntry?.data?.mode ?? 'ask'
+    permissionModeOverride = lastEntry?.data?.mode ?? null
 
     if (sessionFile) {
       registerPermissionModeController(sessionFile, {
-        get: () => permissionMode,
+        get: () => getCurrentPermissionMode(),
         set: (mode: PermissionMode) => {
-          const oldMode = permissionMode
-          permissionMode = mode
+          const oldMode = getCurrentPermissionMode()
+          permissionModeOverride = mode
           pi.appendEntry('permission-mode', { mode })
 
           if (mode === 'auto' && oldMode !== 'auto') {
@@ -461,6 +468,7 @@ export default function permissionExtension(pi: ExtensionAPI): void {
       unregisterPermissionModeController(registeredSessionFile)
       registeredSessionFile = null
     }
+    permissionModeOverride = null
     registeredSessionId = null
   })
 }
