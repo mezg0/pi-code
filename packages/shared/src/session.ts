@@ -124,6 +124,10 @@ export type SessionQuestionPayload = {
 
 export type PermissionMode = 'ask' | 'auto' | 'strict'
 
+export type AppSettings = {
+  defaultPermissionMode: PermissionMode
+}
+
 export type PermissionRequest = {
   id: string
   sessionId: string

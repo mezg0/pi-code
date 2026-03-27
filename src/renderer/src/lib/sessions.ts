@@ -1,5 +1,6 @@
 import type {
   AgentMessage,
+  AppSettings,
   CreateSessionInput,
   GitBranch,
   GitPRStatus,
@@ -30,6 +31,7 @@ import { onServerEvent } from './event-stream'
 export { DEFAULT_AGENT, DEFAULT_MODEL, NEW_SESSION_TITLE } from '@pi-code/shared/session-defaults'
 export type {
   AgentMessage,
+  AppSettings,
   CreateSessionInput,
   GitBranch,
   GitPRStatus,
@@ -53,6 +55,11 @@ export type {
   SessionStreamingPayload,
   UpdateSessionInput
 }
+
+// ── App settings ────────────────────────────────────────────────────────
+export const getAppSettings = (): Promise<AppSettings> => apiGet('/app-settings')
+export const updateAppSettings = (input: Partial<AppSettings>): Promise<AppSettings> =>
+  apiPatch('/app-settings', input)
 
 // ── Projects ────────────────────────────────────────────────────────────
 export const listProjects = (): Promise<Project[]> => apiGet('/project')

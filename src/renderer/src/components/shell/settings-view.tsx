@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { detectPlatform } from '@tanstack/hotkeys'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
@@ -23,6 +23,8 @@ import {
   RefreshCwIcon,
   Settings2Icon,
   ShieldAlertIcon,
+  ShieldCheckIcon,
+  ShieldQuestionIcon,
   Trash2Icon,
   WifiIcon,
   XCircleIcon
@@ -54,7 +56,16 @@ import {
   type ModelShortcut,
   type ModelShortcutMap
 } from '@/lib/model-shortcuts'
-import { listSessions, updateSession, type ModelInfo, type Session } from '@/lib/sessions'
+import {
+  getAppSettings,
+  listSessions,
+  updateAppSettings,
+  updateSession,
+  type AppSettings,
+  type ModelInfo,
+  type PermissionMode,
+  type Session
+} from '@/lib/sessions'
 import { sessionKeys } from '@/lib/query-keys'
 import { useSessionAvailableModels, useSessionRuntimeState } from '@/lib/session-runtime-query'
 import {
@@ -67,9 +78,15 @@ import {
 } from '@/lib/auth'
 import type { AuthProviderInfo } from '@pi-code/shared/session'
 
-type SettingsSection = 'api-keys' | 'model-shortcuts' | 'remote-access' | 'archived-chats'
+type SettingsSection =
+  | 'permissions'
+  | 'api-keys'
+  | 'model-shortcuts'
+  | 'remote-access'
+  | 'archived-chats'
 
 const NAV_ITEMS: { id: SettingsSection; label: string; icon: React.ElementType }[] = [
+  { id: 'permissions', label: 'Permissions', icon: ShieldQuestionIcon },
   { id: 'api-keys', label: 'API Keys', icon: KeyRoundIcon },
   { id: 'model-shortcuts', label: 'Model Shortcuts', icon: KeyboardIcon },
   { id: 'remote-access', label: 'Remote Access', icon: WifiIcon },
@@ -77,10 +94,11 @@ const NAV_ITEMS: { id: SettingsSection; label: string; icon: React.ElementType }
 ]
 
 export function SettingsView(): React.JSX.Element {
-  const [activeSection, setActiveSection] = useState<SettingsSection | null>('api-keys')
+  const [activeSection, setActiveSection] = useState<SettingsSection | null>('permissions')
 
   const sectionContent = (
     <>
+      {activeSection === 'permissions' && <PermissionsSection />}
       {activeSection === 'api-keys' && <ApiKeysSection />}
       {activeSection === 'model-shortcuts' && <ModelShortcutsSection />}
       {activeSection === 'remote-access' && <RemoteAccessSection />}
@@ -144,6 +162,148 @@ export function SettingsView(): React.JSX.Element {
         )}
       </div>
     </>
+  )
+}
+
+const PERMISSION_MODE_OPTIONS: Array<{
+  mode: PermissionMode
+  label: string
+  description: string
+  icon: React.ElementType
+  accentClass: string
+}> = [
+  {
+    mode: 'ask',
+    label: 'Ask',
+    description: 'Approve bash, edit, and write. Other tools run automatically.',
+    icon: ShieldQuestionIcon,
+    accentClass: 'border-border'
+  },
+  {
+    mode: 'auto',
+    label: 'Auto',
+    description: 'Allow all tool calls automatically.',
+    icon: ShieldCheckIcon,
+    accentClass: 'border-green-500/30 bg-green-500/5'
+  },
+  {
+    mode: 'strict',
+    label: 'Strict',
+    description: 'Require approval for every tool call.',
+    icon: ShieldAlertIcon,
+    accentClass: 'border-orange-500/30 bg-orange-500/5'
+  }
+]
+
+function PermissionsSection(): React.JSX.Element {
+  const queryClient = useQueryClient()
+  const settingsQuery = useQuery<AppSettings>({
+    queryKey: ['app-settings'],
+    queryFn: () => getAppSettings(),
+    staleTime: 30_000
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: async (mode: PermissionMode) =>
+      updateAppSettings({
+        defaultPermissionMode: mode
+      }),
+    onMutate: async (mode) => {
+      queryClient.setQueryData<AppSettings>(['app-settings'], (previous) => ({
+        ...previous,
+        defaultPermissionMode: mode
+      }))
+    },
+    onError: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['app-settings'] })
+    },
+    onSuccess: (settings) => {
+      queryClient.setQueryData(['app-settings'], settings)
+    }
+  })
+
+  const mode = settingsQuery.data?.defaultPermissionMode ?? 'ask'
+  const pendingMode = updateMutation.isPending ? updateMutation.variables : null
+
+  async function handleSetMode(nextMode: PermissionMode): Promise<void> {
+    if (settingsQuery.isPending || updateMutation.isPending || nextMode === mode) return
+    await updateMutation.mutateAsync(nextMode)
+  }
+
+  if (settingsQuery.isPending) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  return (
+    <ScrollArea className="h-full">
+      <div className="mx-auto max-w-2xl space-y-8 p-6 md:p-8">
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold">Permissions</h2>
+          <p className="text-sm text-muted-foreground">
+            Choose the default permission mode for sessions.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {PERMISSION_MODE_OPTIONS.map((option) => {
+            const Icon = option.icon
+            const isActive = option.mode === mode
+            const isPending = option.mode === pendingMode
+
+            return (
+              <button
+                key={option.mode}
+                type="button"
+                onClick={() => void handleSetMode(option.mode)}
+                disabled={settingsQuery.isPending || updateMutation.isPending}
+                className={`flex w-full items-start gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                  isActive ? option.accentClass : 'border-border bg-card hover:bg-accent/40'
+                } ${updateMutation.isPending ? 'cursor-default' : ''}`}
+              >
+                <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-background/80 text-muted-foreground">
+                  {isPending ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <Icon className="size-4" />
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{option.label}</span>
+                    {isActive && (
+                      <Badge variant="secondary" className="gap-1">
+                        <CheckCircle2Icon className="size-3 text-emerald-500" />
+                        Default
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">{option.description}</p>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="rounded-lg border border-dashed border-border px-4 py-3 text-xs text-muted-foreground">
+          Applies to new sessions and any existing session still using the default. You can still
+          change a specific session from its permission control in the chat header.
+        </div>
+
+        {(settingsQuery.isError || updateMutation.isError) && (
+          <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+            <XCircleIcon className="size-4 shrink-0" />
+            {settingsQuery.isError
+              ? 'Failed to load permission settings.'
+              : 'Failed to save the default permission mode.'}
+          </div>
+        )}
+      </div>
+    </ScrollArea>
   )
 }
 

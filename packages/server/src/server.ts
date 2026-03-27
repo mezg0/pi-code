@@ -8,6 +8,7 @@ import { createFilesRoutes } from './routes/files'
 import { createGitRoutes } from './routes/git'
 import { createProjectRoutes } from './routes/project'
 import { createSessionRoutes } from './routes/session'
+import { createSettingsRoutes } from './routes/settings'
 import { createRemoteRoutes } from './routes/remote'
 import { createTerminalRoutes } from './routes/terminal'
 import { subscribeToServerEvents } from './event-bus'
@@ -100,6 +101,7 @@ export function createApp(options?: { webRoot?: string; devProxy?: string }): Ho
   app.route('/git', createGitRoutes())
   app.route('/project', createProjectRoutes())
   app.route('/session', createSessionRoutes())
+  app.route('/app-settings', createSettingsRoutes())
   app.route('/terminal', createTerminalRoutes())
 
   // Dev mode: proxy non-API requests to Vite dev server for hot reload
