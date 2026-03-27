@@ -37,7 +37,7 @@ const LOAD_MORE_BATCH = 20
 const EMPTY_PENDING_TOOL_CALLS = new Set<string>()
 
 // Tools grouped into a collapsible "Gathered context" row.
-const CONTEXT_GROUP_TOOLS = new Set(['read', 'grep', 'find', 'ls'])
+const CONTEXT_GROUP_TOOLS = new Set(['read', 'grep', 'rg', 'find', 'ls'])
 
 // Tools grouped into a collapsible "Edited files" row.
 const EDIT_GROUP_TOOLS = new Set(['write', 'edit'])
@@ -207,6 +207,8 @@ function getToolTitle(name: string): string {
       return 'Shell'
     case 'grep':
       return 'Grep'
+    case 'rg':
+      return 'Ripgrep'
     case 'find':
       return 'Find'
     case 'ls':
@@ -238,7 +240,8 @@ function getToolSubtitle(name: string, args: unknown): string | undefined {
       return typeof a.path === 'string' ? a.path : undefined
     case 'bash':
       return typeof a.command === 'string' ? a.command : undefined
-    case 'grep': {
+    case 'grep':
+    case 'rg': {
       const parts: string[] = []
       if (typeof a.pattern === 'string') parts.push(`"${a.pattern}"`)
       if (typeof a.path === 'string') parts.push(a.path)
@@ -388,6 +391,7 @@ function contextGroupSummary(tools: ToolEntry[]): string {
         reads++
         break
       case 'grep':
+      case 'rg':
       case 'find':
         searches++
         break
