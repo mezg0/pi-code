@@ -1,4 +1,5 @@
 import { BrowserWindow } from 'electron'
+import { publishServerEvent } from '@pi-code/server/event-bus'
 import type { PermissionMode, PermissionRequest, PermissionResponse } from '@pi-code/shared/session'
 
 // ── Pending permission state ────────────────────────────────────────
@@ -21,6 +22,8 @@ function generateRequestId(): string {
 }
 
 function emitToRenderers(channel: string, payload: unknown): void {
+  publishServerEvent(channel, payload)
+
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send(channel, payload)
   }
@@ -369,17 +372,4 @@ export function getPermissionModeController(
   sessionFile: string
 ): PermissionModeController | undefined {
   return controllersBySessionFile.get(sessionFile)
-}
-
-// ── Session ID context ──────────────────────────────────────────────
-// Shared with the question tool — set before each prompt execution.
-
-let currentSessionId: string | null = null
-
-export function setCurrentPermissionSessionId(sessionId: string | null): void {
-  currentSessionId = sessionId
-}
-
-export function getCurrentPermissionSessionId(): string | null {
-  return currentSessionId
 }

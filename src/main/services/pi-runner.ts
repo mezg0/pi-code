@@ -32,8 +32,7 @@ import { getPlanModeController } from './extensions/plan-mode'
 import {
   clearAlwaysApprovedForSession,
   getPermissionModeController,
-  rejectAllPermissionsForSession,
-  setCurrentPermissionSessionId
+  rejectAllPermissionsForSession
 } from './tools/permission'
 import type { PermissionMode } from '@pi-code/shared/session'
 import { webFetchTool } from './tools/webfetch'
@@ -479,9 +478,8 @@ export async function sendSessionMessage(
       mimeType: image.mimeType
     }))
 
-    // Set the current session ID so the question/permission tools know which session it's in
+    // Set the current session ID so question tools know which session they're in
     setCurrentSessionId(sessionId)
-    setCurrentPermissionSessionId(sessionId)
 
     if (agentSession.isStreaming) {
       await agentSession.prompt(text, { streamingBehavior: 'steer', images: piImages })
