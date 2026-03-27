@@ -56,7 +56,8 @@ export type {
 
 // ── Projects ────────────────────────────────────────────────────────────
 export const listProjects = (): Promise<Project[]> => apiGet('/project')
-export const removeProject = (id: string): Promise<boolean> => apiDelete(`/project/${encodeURIComponent(id)}`)
+export const removeProject = (id: string): Promise<boolean> =>
+  apiDelete(`/project/${encodeURIComponent(id)}`)
 
 // ── Sessions ────────────────────────────────────────────────────────────
 export const listSessions = (): Promise<Session[]> => apiGet('/session')

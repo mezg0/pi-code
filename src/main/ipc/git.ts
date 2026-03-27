@@ -85,7 +85,5 @@ export function registerGitIpc(): void {
       removeWorktree(cwd, worktreePath, force)
   )
 
-  ipcMain.handle('git:prStatus', (_event, cwd: string, branch: string) =>
-    getPRStatus(cwd, branch)
-  )
+  ipcMain.handle('git:prStatus', (_event, cwd: string, branch: string) => getPRStatus(cwd, branch))
 }

@@ -98,15 +98,22 @@ const api: SessionApi = {
     questionReject: (requestId: string) =>
       ipcRenderer.invoke('sessions:questionReject', requestId) as Promise<boolean>,
     onQuestion: (listener): (() => void) => {
-      const handler = (_event: unknown, payload: SessionQuestionPayload): void =>
-        listener(payload)
+      const handler = (_event: unknown, payload: SessionQuestionPayload): void => listener(payload)
       ipcRenderer.on('sessions:question', handler)
       return () => ipcRenderer.off('sessions:question', handler)
     },
     getPendingPermission: (sessionId: string) =>
-      ipcRenderer.invoke('sessions:pendingPermission', sessionId) as Promise<PermissionRequest | null>,
+      ipcRenderer.invoke(
+        'sessions:pendingPermission',
+        sessionId
+      ) as Promise<PermissionRequest | null>,
     permissionReply: (requestId: string, response: PermissionResponse, message?: string) =>
-      ipcRenderer.invoke('sessions:permissionReply', requestId, response, message) as Promise<boolean>,
+      ipcRenderer.invoke(
+        'sessions:permissionReply',
+        requestId,
+        response,
+        message
+      ) as Promise<boolean>,
     getPermissionMode: (sessionId: string) =>
       ipcRenderer.invoke('sessions:getPermissionMode', sessionId) as Promise<PermissionMode>,
     setPermissionMode: (sessionId: string, mode: PermissionMode) =>
@@ -166,8 +173,7 @@ const authApi: AuthApi = {
   listProviders: () => ipcRenderer.invoke('auth:listProviders'),
   setApiKey: (providerId: string, key: string) =>
     ipcRenderer.invoke('auth:setApiKey', providerId, key),
-  removeCredential: (providerId: string) =>
-    ipcRenderer.invoke('auth:removeCredential', providerId),
+  removeCredential: (providerId: string) => ipcRenderer.invoke('auth:removeCredential', providerId),
   login: (providerId: string) => ipcRenderer.invoke('auth:login', providerId),
   logout: (providerId: string) => ipcRenderer.invoke('auth:logout', providerId),
   onProgress: (listener): (() => void) => {
@@ -208,7 +214,13 @@ const gitApi: GitApi = {
   createBranch: (cwd: string, branch: string) =>
     ipcRenderer.invoke('git:createBranch', cwd, branch) as Promise<GitCommitResult>,
   createWorktree: (cwd: string, branch: string, newBranch?: string, path?: string | null) =>
-    ipcRenderer.invoke('git:createWorktree', cwd, branch, newBranch, path) as Promise<GitWorktreeResult>,
+    ipcRenderer.invoke(
+      'git:createWorktree',
+      cwd,
+      branch,
+      newBranch,
+      path
+    ) as Promise<GitWorktreeResult>,
   removeWorktree: (cwd: string, worktreePath: string, force?: boolean) =>
     ipcRenderer.invoke('git:removeWorktree', cwd, worktreePath, force) as Promise<void>,
   getPRStatus: (cwd: string, branch: string) =>
@@ -216,8 +228,7 @@ const gitApi: GitApi = {
 }
 
 const editorApi: EditorApi = {
-  getAvailableEditors: () =>
-    ipcRenderer.invoke('editor:available') as Promise<EditorId[]>,
+  getAvailableEditors: () => ipcRenderer.invoke('editor:available') as Promise<EditorId[]>,
   openInEditor: (cwd: string, editorId: EditorId) =>
     ipcRenderer.invoke('editor:open', cwd, editorId) as Promise<void>
 }

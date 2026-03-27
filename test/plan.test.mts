@@ -82,7 +82,21 @@ test('normalizePlanTitle returns "Untitled plan" for completely empty markdown',
 // getPlanFromToolMessage
 // ---------------------------------------------------------------------------
 
-function planToolMessage(overrides: Record<string, unknown> = {}) {
+function planToolMessage(overrides: Record<string, unknown> = {}): {
+  role: string
+  toolName: string
+  timestamp: number
+  details: {
+    plan: {
+      title?: unknown
+      markdown?: unknown
+      summary?: unknown
+      updatedAt?: unknown
+    }
+    [key: string]: unknown
+  }
+  [key: string]: unknown
+} {
   return {
     role: 'toolResult',
     toolName: 'create_plan',
@@ -143,10 +157,7 @@ test('getPlanFromToolMessage returns null when markdown is whitespace-only', () 
 })
 
 test('getPlanFromToolMessage returns null when details is missing', () => {
-  assert.equal(
-    getPlanFromToolMessage({ role: 'toolResult', toolName: 'create_plan' }),
-    null
-  )
+  assert.equal(getPlanFromToolMessage({ role: 'toolResult', toolName: 'create_plan' }), null)
 })
 
 test('getPlanFromToolMessage returns null when plan object is missing', () => {

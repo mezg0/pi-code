@@ -28,9 +28,7 @@ const QUESTION_INFO = Type.Object({
   question: Type.String({ description: 'Complete question' }),
   header: Type.String({ description: 'Very short label (max 30 chars)' }),
   options: Type.Array(QUESTION_OPTION, { description: 'Available choices' }),
-  multiple: Type.Optional(
-    Type.Boolean({ description: 'Allow selecting multiple choices' })
-  )
+  multiple: Type.Optional(Type.Boolean({ description: 'Allow selecting multiple choices' }))
 })
 
 const QUESTION_PARAMS = Type.Object({

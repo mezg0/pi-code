@@ -22,11 +22,7 @@ export type PiServer = {
   stopRemote(): Promise<void>
 }
 
-function startListener(
-  app: Hono,
-  hostname: string,
-  port: number
-): Promise<PiListener> {
+function startListener(app: Hono, hostname: string, port: number): Promise<PiListener> {
   return new Promise((resolve, reject) => {
     try {
       const server = serve({ fetch: app.fetch, port, hostname })
@@ -34,11 +30,8 @@ function startListener(
       const onListening = (): void => {
         const address = server.address() as AddressInfo | null
         const resolvedPort = address?.port ?? port
-        const resolvedHost =
-          typeof address?.address === 'string' ? address.address : hostname
-        const urlHost = resolvedHost.includes(':')
-          ? `[${resolvedHost}]`
-          : resolvedHost
+        const resolvedHost = typeof address?.address === 'string' ? address.address : hostname
+        const urlHost = resolvedHost.includes(':') ? `[${resolvedHost}]` : resolvedHost
 
         resolve({
           hostname: resolvedHost,

@@ -4,7 +4,7 @@ import { onServerEvent } from './event-stream'
 
 export type { FileEntry, FilesChangedPayload }
 
-const qs = (params: Record<string, string | undefined>) => {
+const qs = (params: Record<string, string | undefined>): string => {
   const filtered = Object.fromEntries(
     Object.entries(params).filter(([, v]) => v !== undefined)
   ) as Record<string, string>
