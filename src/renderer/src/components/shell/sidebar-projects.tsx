@@ -535,7 +535,7 @@ function SessionMenuEntry({
         <TooltipTrigger asChild>
           <SidebarMenuAction
             showOnHover
-            className="left-2 right-auto"
+            className="left-1 right-auto"
             aria-label={session.pinned ? 'Unpin session' : 'Pin session'}
             disabled={isPinning}
             onClick={(event) => {
