@@ -38,6 +38,21 @@ function formatProviderLabel(provider: string): string {
   }
 }
 
+function formatModelDisplayName(modelId: string): string {
+  // Extract just the last part of path-like IDs
+  // e.g., "accounts/fireworks/routers/kimi-k2p5-turbo" → "kimi-k2p5-turbo"
+  const lastSegment = modelId.split('/').pop() ?? modelId
+  
+  // Format nicely: replace hyphens with spaces, but preserve version numbers
+  // e.g., "kimi-k2p5-turbo" → "kimi k2.5 turbo"
+  return lastSegment
+    .replace(/-/g, ' ')
+    .replace(/k2p5/gi, 'k2.5')
+    .replace(/k2p0/gi, 'k2.0')
+    .replace(/k1p5/gi, 'k1.5')
+    .toLowerCase()
+}
+
 function FooterButton({
   children,
   className,
@@ -102,9 +117,9 @@ export function ModelSelector({ sessionId }: { sessionId: string }): React.JSX.E
     <>
       <ModelSelectorRoot open={open} onOpenChange={setOpen}>
         <ModelSelectorTrigger asChild>
-          <FooterButton className="uppercase" disabled={pending}>
-            {currentModelId}
-            <ChevronDownIcon className="size-3 opacity-50" />
+          <FooterButton className="max-w-[140px] truncate uppercase" disabled={pending}>
+            <span className="truncate">{formatModelDisplayName(currentModelId)}</span>
+            <ChevronDownIcon className="size-3 flex-shrink-0 opacity-50" />
           </FooterButton>
         </ModelSelectorTrigger>
         <ModelSelectorContent title="Select model">
@@ -124,7 +139,9 @@ export function ModelSelector({ sessionId }: { sessionId: string }): React.JSX.E
                       onSelect={() => void handleModelSelect(model)}
                       disabled={pending}
                     >
-                      <ModelSelectorName>{model.id}</ModelSelectorName>
+                      <ModelSelectorName className="truncate">
+                        {formatModelDisplayName(model.id)}
+                      </ModelSelectorName>
                       {model.reasoning ? (
                         <span className="text-[10px] text-muted-foreground">reasoning</span>
                       ) : null}
