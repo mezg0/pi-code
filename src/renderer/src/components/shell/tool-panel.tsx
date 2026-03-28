@@ -187,7 +187,7 @@ export function ToolPanel({
               key={`browser:${projectCwd}`}
               className={activeTab === 'browser' && projectCwd === cwd ? 'size-full' : 'sr-only'}
             >
-              <BrowserView id={`browser:${projectCwd}`} />
+              <BrowserView id={`browser:${projectCwd}`} projectPath={projectCwd} />
             </div>
           ))}
 

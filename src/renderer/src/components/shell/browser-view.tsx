@@ -13,30 +13,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { emitBrowserGrab } from '@/lib/browser-grab'
 import { getReactGrabInjectionScript, REACT_GRAB_MESSAGE_PREFIX } from '@/lib/react-grab-inject'
 import { cn } from '@/lib/utils'
-
-const BROWSER_URL_PREFIX = 'pi.browser-url:'
+import { loadBrowserUrl, saveBrowserUrl } from '@/lib/view-state'
 
 function normalizeUrl(value: string): string {
   const trimmed = value.trim()
   if (!trimmed) return ''
   if (/^https?:\/\//i.test(trimmed)) return trimmed
   return `http://${trimmed}`
-}
-
-function getStoredUrl(id: string): string {
-  try {
-    return localStorage.getItem(`${BROWSER_URL_PREFIX}${id}`) ?? ''
-  } catch {
-    return ''
-  }
-}
-
-function setStoredUrl(id: string, url: string): void {
-  try {
-    localStorage.setItem(`${BROWSER_URL_PREFIX}${id}`, url)
-  } catch {
-    // Ignore storage errors.
-  }
 }
 
 type WebviewElement = HTMLElement & {
@@ -76,10 +59,10 @@ function NavButton({
   )
 }
 
-export function BrowserView({ id }: { id: string }): React.JSX.Element {
+export function BrowserView({ id, projectPath }: { id: string; projectPath?: string }): React.JSX.Element {
   const webviewRef = useRef<WebviewElement>(null)
-  const [input, setInput] = useState(() => getStoredUrl(id))
-  const [url, setUrl] = useState(() => getStoredUrl(id))
+  const [input, setInput] = useState(() => loadBrowserUrl({ projectPath, legacyId: id }))
+  const [url, setUrl] = useState(() => loadBrowserUrl({ projectPath, legacyId: id }))
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
   // Tracks whether react-grab is in active selection mode (not just loaded)
@@ -96,6 +79,13 @@ export function BrowserView({ id }: { id: string }): React.JSX.Element {
       // webview may not be ready yet
     }
   }, [])
+
+  const persistUrl = useCallback(
+    (nextUrl: string): void => {
+      saveBrowserUrl({ projectPath }, nextUrl)
+    },
+    [projectPath]
+  )
 
   // Inject react-grab into the webview (always inject on dom-ready)
   const injectReactGrab = useCallback(() => {
@@ -125,7 +115,7 @@ export function BrowserView({ id }: { id: string }): React.JSX.Element {
     const handleNavigate = (): void => {
       const currentUrl = webview.getURL()
       if (currentUrl) {
-        setStoredUrl(id, currentUrl)
+        persistUrl(currentUrl)
         setInput(currentUrl)
         setUrl(currentUrl)
       }
@@ -173,12 +163,12 @@ export function BrowserView({ id }: { id: string }): React.JSX.Element {
       webview.removeEventListener('dom-ready', handleDomReady)
       webview.removeEventListener('console-message', handleConsoleMessage)
     }
-  }, [id, hasUrl, updateNavState, injectReactGrab])
+  }, [hasUrl, updateNavState, injectReactGrab, persistUrl])
 
   function handleNavigate(): void {
     const nextUrl = normalizeUrl(input)
     setInput(nextUrl)
-    setStoredUrl(id, nextUrl)
+    persistUrl(nextUrl)
     setUrl(nextUrl)
   }
 
