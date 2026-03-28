@@ -467,7 +467,10 @@ function AppShellContent({
                       <a href={activePRUrl} target="_blank" rel="noreferrer">
                         <GitPullRequestIcon data-icon="inline-start" />
                         View PR
-                        <ExternalLinkIcon data-icon="inline-end" className="size-3 text-muted-foreground" />
+                        <ExternalLinkIcon
+                          data-icon="inline-end"
+                          className="size-3 text-muted-foreground"
+                        />
                       </a>
                     </Button>
                   </TooltipTrigger>

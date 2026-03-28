@@ -246,7 +246,9 @@ export async function listSessions(): Promise<Session[]> {
   const sessionsByProject = await Promise.all(
     projects.map(async (project) => {
       const infos = await SessionManager.list(project.repoPath)
-      return infos.map((info) => toSession(project, info, archivedSessionIds, wtInfoMap, pinnedSessionIds))
+      return infos.map((info) =>
+        toSession(project, info, archivedSessionIds, wtInfoMap, pinnedSessionIds)
+      )
     })
   )
 
