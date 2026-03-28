@@ -9,6 +9,7 @@ const LEFT_SIDEBAR_KEY = 'pi.left-sidebar-open'
 const TOOL_PANEL_SIZE_KEY = 'pi.tool-panel-size'
 const TOOL_PANEL_OPEN_KEY = 'pi.tool-panel-open'
 const BROWSER_URL_PREFIX = 'pi.browser-url:'
+const BROWSER_PROJECT_SCOPE_PREFIX = 'browser:'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,6 +55,30 @@ function saveMap(map: ProjectViewStateMap): void {
   }
 }
 
+function readStorageValue(key: string): string | null {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function writeStorageValue(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // Ignore storage errors to avoid breaking the UI.
+  }
+}
+
+function removeStorageValue(key: string): void {
+  try {
+    localStorage.removeItem(key)
+  } catch {
+    // Ignore storage errors to avoid breaking the UI.
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Per-project view state
 // ---------------------------------------------------------------------------
@@ -88,11 +113,34 @@ export function clearProjectViewState(repoPath: string): void {
     saveMap(map)
   }
 
-  // 2. Remove browser URL
-  try {
-    localStorage.removeItem(`${BROWSER_URL_PREFIX}browser:${repoPath}`)
-  } catch {
-    // Ignore
+  // 2. Remove browser URL state stored for this project path.
+  removeStorageValue(`${BROWSER_URL_PREFIX}${BROWSER_PROJECT_SCOPE_PREFIX}${repoPath}`)
+}
+
+export function loadBrowserUrl(options: { projectPath?: string; legacyId?: string }): string {
+  const { projectPath, legacyId } = options
+
+  if (projectPath) {
+    const projectUrl = readStorageValue(
+      `${BROWSER_URL_PREFIX}${BROWSER_PROJECT_SCOPE_PREFIX}${projectPath}`
+    )
+    if (projectUrl) {
+      return projectUrl
+    }
+  }
+
+  if (legacyId) {
+    return readStorageValue(`${BROWSER_URL_PREFIX}${legacyId}`) ?? ''
+  }
+
+  return ''
+}
+
+export function saveBrowserUrl(options: { projectPath?: string }, url: string): void {
+  const { projectPath } = options
+
+  if (projectPath) {
+    writeStorageValue(`${BROWSER_URL_PREFIX}${BROWSER_PROJECT_SCOPE_PREFIX}${projectPath}`, url)
   }
 }
 
