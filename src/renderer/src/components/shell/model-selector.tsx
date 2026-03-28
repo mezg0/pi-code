@@ -31,6 +31,8 @@ import { getModelShortcutDisplay } from '@/lib/shortcuts'
 
 function formatProviderLabel(provider: string): string {
   switch (provider) {
+    case 'fireworks-ai':
+      return 'Fireworks'
     default:
       return provider
   }

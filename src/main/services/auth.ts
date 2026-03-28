@@ -13,7 +13,8 @@ const API_KEY_PROVIDERS: { id: string; name: string; envVar: string }[] = [
   { id: 'xai', name: 'xAI', envVar: 'XAI_API_KEY' },
   { id: 'openrouter', name: 'OpenRouter', envVar: 'OPENROUTER_API_KEY' },
   { id: 'mistral', name: 'Mistral', envVar: 'MISTRAL_API_KEY' },
-  { id: 'cerebras', name: 'Cerebras', envVar: 'CEREBRAS_API_KEY' }
+  { id: 'cerebras', name: 'Cerebras', envVar: 'CEREBRAS_API_KEY' },
+  { id: 'fireworks-ai', name: 'Fireworks', envVar: 'FIREWORKS_API_KEY' }
 ]
 
 export type AuthProviderInfo = {
