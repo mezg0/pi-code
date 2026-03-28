@@ -114,7 +114,7 @@ export function SidebarProjects({
       <SidebarContent>
         {pinnedSessions.length > 0 && (
           <SidebarGroup>
-            <SidebarGroupLabel className="pl-8">Pinned</SidebarGroupLabel>
+            <SidebarGroupLabel>Pinned</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {pinnedSessions.map((session) => (
@@ -143,7 +143,7 @@ export function SidebarProjects({
               <SidebarGroup>
                 <div className="flex items-center justify-between gap-1">
                   <CollapsibleTrigger asChild>
-                    <SidebarGroupLabel className="cursor-pointer gap-1.5 truncate pl-8">
+                    <SidebarGroupLabel className="cursor-pointer gap-1.5 truncate">
                       <ChevronRightIcon className="!size-3 shrink-0 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                       {group.project.name}
                     </SidebarGroupLabel>
@@ -535,7 +535,7 @@ function SessionMenuEntry({
         <TooltipTrigger asChild>
           <SidebarMenuAction
             showOnHover
-            className="left-1 right-auto"
+            className="left-2 right-auto"
             aria-label={session.pinned ? 'Unpin session' : 'Pin session'}
             disabled={isPinning}
             onClick={(event) => {
@@ -561,7 +561,7 @@ function SessionMenuEntry({
         </TooltipContent>
       </Tooltip>
 
-      <SidebarMenuButton isActive={isActive} tooltip={session.title} asChild className="pl-8">
+      <SidebarMenuButton isActive={isActive} tooltip={session.title} asChild>
         <Link
           to="/sessions/$sessionId/overview"
           params={{ sessionId: session.id }}
