@@ -6,7 +6,6 @@ import {
   ChevronRightIcon,
   CircleIcon,
   CircleXIcon,
-  EllipsisIcon,
   FolderPlusIcon,
   GitBranchIcon,
   GitMergeIcon,
@@ -510,6 +509,7 @@ function SessionMenuEntry({
   onNavigate?: () => void
 }): React.JSX.Element {
   const [isArchiving, setIsArchiving] = useState(false)
+  const [isPinning, setIsPinning] = useState(false)
   const isBusy = BUSY_STATUSES.has(session.status)
   const isFailed = FAILED_STATUSES.has(session.status)
 
@@ -529,6 +529,37 @@ function SessionMenuEntry({
 
   return (
     <SidebarMenuItem className={isArchiving ? 'pointer-events-none opacity-50' : undefined}>
+      {/* Pin action - positioned on the left */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <SidebarMenuAction
+            showOnHover
+            className="left-1 right-auto"
+            aria-label={session.pinned ? 'Unpin session' : 'Pin session'}
+            disabled={isPinning}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              setIsPinning(true)
+              void onTogglePinnedSession(session, !session.pinned).finally(() =>
+                setIsPinning(false)
+              )
+            }}
+          >
+            {isPinning ? (
+              <LoaderIcon className="size-3.5 animate-spin" />
+            ) : session.pinned ? (
+              <PinOffIcon className="size-3.5" />
+            ) : (
+              <PinIcon className="size-3.5" />
+            )}
+          </SidebarMenuAction>
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          {session.pinned ? 'Unpin session' : 'Pin session'}
+        </TooltipContent>
+      </Tooltip>
+
       <SidebarMenuButton isActive={isActive} tooltip={session.title} asChild>
         <Link
           to="/sessions/$sessionId/overview"
@@ -554,40 +585,12 @@ function SessionMenuEntry({
         </Link>
       </SidebarMenuButton>
 
-      <DropdownMenu>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <DropdownMenuTrigger asChild>
-              <SidebarMenuAction showOnHover aria-label="Session actions">
-                <EllipsisIcon />
-              </SidebarMenuAction>
-            </DropdownMenuTrigger>
-          </TooltipTrigger>
-          <TooltipContent side="right">Session actions</TooltipContent>
-        </Tooltip>
-        <DropdownMenuContent side="right" align="start">
-          <DropdownMenuItem
-            onClick={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              void onTogglePinnedSession(session, !session.pinned)
-            }}
-          >
-            {session.pinned ? (
-              <>
-                <PinOffIcon className="size-3.5" />
-                Unpin session
-              </>
-            ) : (
-              <>
-                <PinIcon className="size-3.5" />
-                Pin session
-              </>
-            )}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="text-destructive focus:text-destructive"
+      {/* Archive action - positioned on the right */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <SidebarMenuAction
+            showOnHover
+            aria-label="Archive session"
             disabled={isArchiving}
             onClick={(event) => {
               event.preventDefault()
@@ -601,10 +604,10 @@ function SessionMenuEntry({
             ) : (
               <ArchiveIcon className="size-3.5" />
             )}
-            Archive session
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </SidebarMenuAction>
+        </TooltipTrigger>
+        <TooltipContent side="right">Archive session</TooltipContent>
+      </Tooltip>
     </SidebarMenuItem>
   )
 }
