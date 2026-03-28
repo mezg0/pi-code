@@ -46,3 +46,15 @@ export function splitSessionsForSidebar(
 
   return { pinnedSessions, projectGroups }
 }
+
+export function upsertSession(sessions: Session[], nextSession: Session): Session[] {
+  const existingIndex = sessions.findIndex((session) => session.id === nextSession.id)
+
+  if (existingIndex === -1) {
+    return sortSessionsByUpdatedAt([...sessions, nextSession])
+  }
+
+  return sortSessionsByUpdatedAt(
+    sessions.map((session) => (session.id === nextSession.id ? nextSession : session))
+  )
+}
