@@ -93,6 +93,15 @@ const NAV_ITEMS: { id: SettingsSection; label: string; icon: React.ElementType }
   { id: 'archived-chats', label: 'Archived Chats', icon: ArchiveIcon }
 ]
 
+function formatProviderLabel(provider: string): string {
+  switch (provider) {
+    case 'fireworks-ai':
+      return 'Fireworks'
+    default:
+      return provider
+  }
+}
+
 export function SettingsView(): React.JSX.Element {
   const [activeSection, setActiveSection] = useState<SettingsSection | null>('permissions')
 
@@ -611,7 +620,10 @@ function ModelShortcutsSection(): React.JSX.Element {
                           <ModelSelectorList>
                             <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
                             {providers.map((provider) => (
-                              <ModelSelectorGroup heading={provider} key={provider}>
+                              <ModelSelectorGroup
+                                heading={formatProviderLabel(provider)}
+                                key={provider}
+                              >
                                 {models
                                   .filter((m) => m.provider === provider)
                                   .map((model) => (
@@ -685,7 +697,7 @@ function ModelShortcutsSection(): React.JSX.Element {
               <ModelSelectorList>
                 <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
                 {providers.map((provider) => (
-                  <ModelSelectorGroup heading={provider} key={provider}>
+                  <ModelSelectorGroup heading={formatProviderLabel(provider)} key={provider}>
                     {models
                       .filter((m) => m.provider === provider)
                       .map((model) => (

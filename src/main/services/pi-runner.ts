@@ -1,4 +1,5 @@
 import { existsSync } from 'fs'
+import { join } from 'path'
 import { BrowserWindow } from 'electron'
 import type {
   AgentSession,
@@ -154,7 +155,8 @@ async function createTrackedAgentSession(sessionId: string): Promise<AgentSessio
   if (!session) throw new Error('Session not found')
 
   const sessionManager = await createSessionManagerForSession(sessionId)
-  const { createAgentSession, DefaultResourceLoader } = await loadPiSdk()
+  const { createAgentSession, DefaultResourceLoader, ModelRegistry, getAgentDir } =
+    await loadPiSdk()
 
   const agentCwd = session.worktreePath ?? session.repoPath
   const resourceLoader = new DefaultResourceLoader({
@@ -166,11 +168,39 @@ async function createTrackedAgentSession(sessionId: string): Promise<AgentSessio
   await resourceLoader.reload()
 
   const authStorage = await getAuthStorage()
+  const modelRegistry = new ModelRegistry(authStorage, join(getAgentDir(), 'models.json'))
+  modelRegistry.registerProvider('fireworks-ai', {
+    baseUrl: 'https://api.fireworks.ai/inference/v1',
+    apiKey: 'FIREWORKS_API_KEY',
+    api: 'openai-completions',
+    models: [
+      {
+        id: 'accounts/fireworks/routers/kimi-k2p5-turbo',
+        name: 'Kimi K2.5 Turbo (FirePass)',
+        reasoning: true,
+        input: ['text', 'image'],
+        cost: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0
+        },
+        contextWindow: 256000,
+        maxTokens: 256000,
+        compat: {
+          supportsDeveloperRole: false,
+          supportsReasoningEffort: false
+        }
+      }
+    ]
+  })
+
   const { session: agentSession } = await createAgentSession({
     cwd: agentCwd,
     sessionManager,
     resourceLoader,
     authStorage,
+    modelRegistry,
     customTools: [
       webFetchTool as unknown as ToolDefinition,
       askUserQuestionTool as unknown as ToolDefinition
