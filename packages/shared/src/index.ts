@@ -1,6 +1,7 @@
 export * from './commit-message'
 export * from './editor'
 export * from './format-error'
+export * from './mcp'
 export * from './plan'
 export * from './session'
 export * from './session-defaults'

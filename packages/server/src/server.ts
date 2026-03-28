@@ -11,6 +11,7 @@ import { createSessionRoutes } from './routes/session'
 import { createSettingsRoutes } from './routes/settings'
 import { createRemoteRoutes } from './routes/remote'
 import { createTerminalRoutes } from './routes/terminal'
+import { createMcpRoutes } from './routes/mcp'
 import { subscribeToServerEvents } from './event-bus'
 
 const MIME_TYPES: Record<string, string> = {
@@ -103,6 +104,7 @@ export function createApp(options?: { webRoot?: string; devProxy?: string }): Ho
   app.route('/session', createSessionRoutes())
   app.route('/app-settings', createSettingsRoutes())
   app.route('/terminal', createTerminalRoutes())
+  app.route('/mcp', createMcpRoutes())
 
   // Dev mode: proxy non-API requests to Vite dev server for hot reload
   const devProxy = options?.devProxy

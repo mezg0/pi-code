@@ -8,6 +8,7 @@
     "./commit-message": "./src/commit-message.ts",
     "./editor": "./src/editor.ts",
     "./format-error": "./src/format-error.ts",
+    "./mcp": "./src/mcp.ts",
     "./plan": "./src/plan.ts",
     "./session": "./src/session.ts",
     "./session-defaults": "./src/session-defaults.ts",

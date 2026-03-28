@@ -31,6 +31,7 @@ import {
 import { getAuthStorage } from './auth'
 import { loadPiSdk } from './pi-sdk'
 import { getBuiltinExtensionFactories } from './extensions/builtin'
+import { getBundledExtensionPaths, getBundledMcpExtensionLoadErrors } from './extensions/external'
 import { getPlanModeController } from './extensions/plan-mode'
 import {
   approveAllPermissionsForSession,
@@ -164,9 +165,14 @@ async function createTrackedAgentSession(sessionId: string): Promise<AgentSessio
     cwd: agentCwd,
     systemPromptOverride: () => SYSTEM_PROMPT,
     appendSystemPromptOverride: () => [],
-    extensionFactories: getBuiltinExtensionFactories()
+    extensionFactories: getBuiltinExtensionFactories(),
+    additionalExtensionPaths: getBundledExtensionPaths()
   })
   await resourceLoader.reload()
+
+  for (const error of getBundledMcpExtensionLoadErrors(resourceLoader.getExtensions())) {
+    console.error(`[pi-runner] bundled MCP extension failed to load: ${error}`)
+  }
 
   const authStorage = await getAuthStorage()
   const modelRegistry = new ModelRegistry(authStorage, join(getAgentDir(), 'models.json'))
@@ -603,10 +609,61 @@ export async function disposeSession(sessionId: string): Promise<boolean> {
   return removeSession(sessionId)
 }
 
+export async function reloadAgentResources(): Promise<{
+  ok: boolean
+  message: string
+  reloadedSessionCount: number
+}> {
+  if (pendingAgentSessions.size > 0) {
+    return {
+      ok: false,
+      message: 'Wait for active session startup to finish before reloading MCP resources.',
+      reloadedSessionCount: 0
+    }
+  }
+
+  for (const [sessionId, agentSession] of agentSessions) {
+    if (agentSession.isStreaming) {
+      return {
+        ok: false,
+        message: `Stop session ${sessionId} before reloading MCP resources.`,
+        reloadedSessionCount: 0
+      }
+    }
+  }
+
+  pendingAgentSessions.clear()
+
+  const sessionIds = Array.from(agentSessions.keys())
+  for (const sessionId of sessionIds) {
+    rejectAllQuestionsForSession(sessionId)
+    rejectAllPermissionsForSession(sessionId)
+    clearAlwaysApprovedForSession(sessionId)
+  }
+
+  pendingStreamingEvents.clear()
+
+  for (const session of agentSessions.values()) {
+    session.dispose()
+  }
+
+  agentSessions.clear()
+
+  return {
+    ok: true,
+    message:
+      sessionIds.length > 0
+        ? `Reloaded MCP resources for ${sessionIds.length} active session${sessionIds.length === 1 ? '' : 's'}.`
+        : 'Reloaded MCP resources. New sessions will use the latest MCP configuration.',
+    reloadedSessionCount: sessionIds.length
+  }
+}
+
 export { getPendingQuestion } from './tools/question'
 
 export function disposeAllSessions(): void {
   pendingAgentSessions.clear()
+  pendingStreamingEvents.clear()
 
   for (const session of agentSessions.values()) {
     session.dispose()
