@@ -3,12 +3,14 @@ import { mkdir, readFile, writeFile } from 'fs/promises'
 import { dirname, join, resolve } from 'path'
 import { app } from 'electron'
 import type { CreateSessionInput, Project, Session, UpdateSessionInput } from '../types/session'
+import type { PermissionMode } from '@pi-code/shared/session'
 import {
   DEFAULT_AGENT,
   DEFAULT_MODEL,
   NEW_SESSION_TITLE,
   deriveSessionTitle
 } from '@pi-code/shared/session-defaults'
+import { getAppSettings } from './settings'
 import { listProjects } from './projects'
 import { loadPiSdk } from './pi-sdk'
 
@@ -21,6 +23,8 @@ type StoredSessionMetadata = {
   archivedSessionIds: string[]
   /** Per-session worktree metadata, keyed by session id */
   worktreeInfo?: Record<string, StoredSessionWorktreeInfo>
+  /** Per-session permission mode snapshot, keyed by session id */
+  permissionModes?: Record<string, PermissionMode>
 }
 
 const SESSION_METADATA_FILE = 'session-metadata.json'
@@ -30,6 +34,7 @@ const sessionFiles = new Map<string, string>()
 
 let archivedSessionIdsCache: Set<string> | null = null
 let worktreeInfoCache: Record<string, StoredSessionWorktreeInfo> | null = null
+let permissionModesCache: Record<string, PermissionMode> | null = null
 
 function getSessionMetadataPath(): string {
   return join(app.getPath('userData'), SESSION_METADATA_FILE)
@@ -46,10 +51,21 @@ async function readStoredSessionMetadata(): Promise<StoredSessionMetadata> {
       worktreeInfo:
         parsed.worktreeInfo && typeof parsed.worktreeInfo === 'object'
           ? (parsed.worktreeInfo as Record<string, StoredSessionWorktreeInfo>)
+          : {},
+      permissionModes:
+        parsed.permissionModes && typeof parsed.permissionModes === 'object'
+          ? Object.fromEntries(
+              Object.entries(parsed.permissionModes).filter(
+                (entry): entry is [string, PermissionMode] => {
+                  const mode = entry[1]
+                  return mode === 'ask' || mode === 'auto' || mode === 'strict'
+                }
+              )
+            )
           : {}
     }
   } catch {
-    return { archivedSessionIds: [], worktreeInfo: {} }
+    return { archivedSessionIds: [], worktreeInfo: {}, permissionModes: {} }
   }
 }
 
@@ -67,6 +83,7 @@ async function getArchivedSessionIds(): Promise<Set<string>> {
 async function writeSessionMetadata(): Promise<void> {
   const archivedIds = archivedSessionIdsCache ?? new Set<string>()
   const wtInfo = worktreeInfoCache ?? {}
+  const permissionModes = permissionModesCache ?? {}
 
   const filePath = getSessionMetadataPath()
   await mkdir(dirname(filePath), { recursive: true })
@@ -75,7 +92,8 @@ async function writeSessionMetadata(): Promise<void> {
     JSON.stringify(
       {
         archivedSessionIds: Array.from(archivedIds),
-        worktreeInfo: wtInfo
+        worktreeInfo: wtInfo,
+        permissionModes
       },
       null,
       2
@@ -117,6 +135,34 @@ async function setWorktreeInfo(
     delete map[id]
   }
   worktreeInfoCache = map
+  await writeSessionMetadata()
+}
+
+async function getPermissionModes(): Promise<Record<string, PermissionMode>> {
+  if (permissionModesCache) return permissionModesCache
+  const stored = await readStoredSessionMetadata()
+  permissionModesCache = stored.permissionModes ?? {}
+  return permissionModesCache
+}
+
+export async function getStoredSessionPermissionMode(
+  id: string
+): Promise<PermissionMode | undefined> {
+  const modes = await getPermissionModes()
+  return modes[id]
+}
+
+export async function setStoredSessionPermissionMode(
+  id: string,
+  mode: PermissionMode | null
+): Promise<void> {
+  const modes = await getPermissionModes()
+  if (mode) {
+    modes[id] = mode
+  } else {
+    delete modes[id]
+  }
+  permissionModesCache = modes
   await writeSessionMetadata()
 }
 
@@ -213,6 +259,7 @@ export async function createSession(input: CreateSessionInput): Promise<Session>
   const now = new Date().toISOString()
   const branch = input.branch ?? null
   const worktreePath = input.worktreePath ?? null
+  const defaultPermissionMode = (await getAppSettings()).defaultPermissionMode
 
   const session: Session = {
     id: randomUUID(),
@@ -230,6 +277,7 @@ export async function createSession(input: CreateSessionInput): Promise<Session>
   }
 
   sessions.set(session.id, session)
+  await setStoredSessionPermissionMode(session.id, defaultPermissionMode)
 
   // Persist worktree info so it survives app restart
   if (branch || worktreePath) {
@@ -260,5 +308,7 @@ export async function deleteSession(id: string): Promise<boolean> {
   sessions.delete(id)
   sessionFiles.delete(id)
   await setArchivedState(id, false)
+  await setStoredSessionPermissionMode(id, null)
+  await setWorktreeInfo(id, null, null)
   return true
 }

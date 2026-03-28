@@ -23,7 +23,8 @@ import {
   deleteSession as removeSession,
   getSession,
   getSessionFile,
-  listSessions,
+  getStoredSessionPermissionMode,
+  setStoredSessionPermissionMode,
   setSessionFile,
   updateSession
 } from './session-manager'
@@ -399,52 +400,51 @@ function readPermissionModeFromEntries(
 }
 
 export async function getPermissionMode(sessionId: string): Promise<PermissionMode> {
+  const storedMode = await getStoredSessionPermissionMode(sessionId)
+  if (storedMode) return storedMode
+
   const defaultMode = (await getAppSettings()).defaultPermissionMode
   const sessionFile = getSessionFile(sessionId)
-  if (!sessionFile) return defaultMode
+
+  if (!sessionFile) {
+    await setStoredSessionPermissionMode(sessionId, defaultMode)
+    return defaultMode
+  }
 
   const controller = getPermissionModeController(sessionFile)
-  if (controller) return controller.get()
+  if (controller) {
+    const mode = controller.get()
+    await setStoredSessionPermissionMode(sessionId, mode)
+    return mode
+  }
 
   try {
     const sessionManager = await createSessionManagerForSession(sessionId)
-    return (
+    const mode =
       readPermissionModeFromEntries(sessionManager.getEntries() as PermissionModeEntry[]) ??
       defaultMode
-    )
+    await setStoredSessionPermissionMode(sessionId, mode)
+    return mode
   } catch {
+    await setStoredSessionPermissionMode(sessionId, defaultMode)
     return defaultMode
   }
 }
 
-export async function syncPermissionModesWithDefault(): Promise<void> {
-  const sessions = await listSessions()
-
-  await Promise.all(
-    sessions.map(async (session) => {
-      const mode = await getPermissionMode(session.id)
-      emitToRenderers('sessions:permissionMode', { sessionId: session.id, mode })
-
-      if (mode === 'auto') {
-        approveAllPermissionsForSession(session.id)
-      }
-    })
-  )
-}
-
-export async function setPermissionMode(
-  sessionId: string,
-  mode: PermissionMode
-): Promise<boolean> {
+export async function setPermissionMode(sessionId: string, mode: PermissionMode): Promise<boolean> {
   try {
-    await ensureAgentSession(sessionId)
+    await setStoredSessionPermissionMode(sessionId, mode)
+
     const sessionFile = getSessionFile(sessionId)
-    if (!sessionFile) return false
+    if (sessionFile) {
+      const controller = getPermissionModeController(sessionFile)
+      controller?.set(mode)
+    }
 
-    const controller = getPermissionModeController(sessionFile)
-    if (!controller) return false
+    if (mode === 'auto') {
+      approveAllPermissionsForSession(sessionId)
+    }
 
-    controller.set(mode)
     emitToRenderers('sessions:permissionMode', { sessionId, mode })
     return true
   } catch (error) {
