@@ -17,8 +17,10 @@ import type {
   ModelInfo,
   RpcState,
   SessionImageInput,
-  SessionStreamingEvent
+  SessionStreamingEvent,
+  SkillInfo
 } from '@pi-code/shared/session'
+import { listSkills } from './skills'
 import {
   deleteSession as removeSession,
   getSession,
@@ -492,6 +494,17 @@ export async function setThinkingLevel(sessionId: string, level: string): Promis
     return true
   } catch {
     return false
+  }
+}
+
+export async function getSessionSkills(sessionId: string): Promise<SkillInfo[]> {
+  try {
+    const session = await getSession(sessionId)
+    if (!session) return []
+    return await listSkills(session.repoPath)
+  } catch (error) {
+    console.error(`[pi-runner] getSessionSkills failed for ${sessionId}:`, error)
+    return []
   }
 }
 

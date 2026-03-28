@@ -5,6 +5,7 @@ import { Shimmer } from '@/components/ai-elements/shimmer'
 
 import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message'
 import { ActionCard, type ActionType } from './action-card'
+import { SkillChip } from './skill-chip'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import type { AgentMessage } from '@/lib/sessions'
 import { cn } from '@/lib/utils'
@@ -56,10 +57,9 @@ type RenderRow =
 function getReadOnlyBashContextCommand(args: unknown): string | null {
   if (!args || typeof args !== 'object') return null
 
-  const command =
-    typeof (args as Record<string, unknown>).command === 'string'
-      ? (args as Record<string, unknown>).command.trim()
-      : ''
+  const argsRecord = args as Record<string, unknown>
+  const commandValue = argsRecord.command
+  const command = typeof commandValue === 'string' ? commandValue.trim() : ''
   if (!command) return null
 
   // Only group simple, single read-only commands. Anything with shell control
@@ -226,6 +226,29 @@ function extractUserText(message: PiMessage): string {
 function extractUserImages(message: PiMessage): ImageBlock[] {
   if (!Array.isArray(message.content)) return []
   return (message.content as ContentBlock[]).filter(isImageBlock)
+}
+
+/**
+ * Parse skill markers (<!--skill:name-->) from text.
+ * Returns the list of skill names and the cleaned text (without markers or load instructions).
+ */
+function parseSkillMarkers(text: string): { skills: string[]; cleanText: string } {
+  const skills: string[] = []
+  const markerRegex = /<!--skill:([^>]+)-->/g
+  let match
+  while ((match = markerRegex.exec(text)) !== null) {
+    skills.push(match[1]!)
+  }
+
+  // Remove markers from text
+  let cleanText = text.replace(markerRegex, '').trim()
+
+  // Remove the skill load instructions ("Load and use the X skill for this task.")
+  // These appear at the beginning of the message
+  const instructionRegex = /^Load and use the \w+ skill for this task\.\s*/gm
+  cleanText = cleanText.replace(instructionRegex, '').trim()
+
+  return { skills, cleanText }
 }
 
 function buildToolResultsMap(messages: PiMessage[]): Map<string, PiMessage> {
@@ -635,9 +658,27 @@ const StableMessageList = memo(function StableMessageList({
                     ))}
                   </div>
                 )}
-                {text.trim() && (
-                  <MessageResponse className="text-[13.5px] leading-[21px]">{text}</MessageResponse>
-                )}
+                {(() => {
+                  const { skills, cleanText } = parseSkillMarkers(text)
+                  const hasContent = skills.length > 0 || !!cleanText.trim()
+                  if (!hasContent) return null
+                  return (
+                    <>
+                      {skills.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-1">
+                          {skills.map((skill) => (
+                            <SkillChip key={skill} name={skill} variant="message" />
+                          ))}
+                        </div>
+                      )}
+                      {cleanText && (
+                        <MessageResponse className="text-[13.5px] leading-[21px]">
+                          {cleanText}
+                        </MessageResponse>
+                      )}
+                    </>
+                  )
+                })()}
               </MessageContent>
             </Message>
           )

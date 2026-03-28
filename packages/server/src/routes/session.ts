@@ -20,6 +20,7 @@ import {
   getPendingQuestion,
   getPermissionMode,
   getPlanMode,
+  getSessionSkills,
   sendSessionMessage,
   setModel,
   setPermissionMode,
@@ -202,6 +203,10 @@ export function createSessionRoutes(): Hono {
     }
 
     return c.json(await setPermissionMode(c.req.param('id'), body.mode))
+  })
+
+  app.get('/:id/skills', async (c) => {
+    return c.json(await getSessionSkills(c.req.param('id')))
   })
 
   return app

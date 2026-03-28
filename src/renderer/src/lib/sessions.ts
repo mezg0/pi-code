@@ -22,6 +22,7 @@ import type {
   SessionStatus,
   SessionStreamingEvent,
   SessionStreamingPayload,
+  SkillInfo,
   UpdateSessionInput
 } from '@pi-code/shared/session'
 
@@ -53,6 +54,7 @@ export type {
   SessionStatus,
   SessionStreamingEvent,
   SessionStreamingPayload,
+  SkillInfo,
   UpdateSessionInput
 }
 
@@ -92,6 +94,8 @@ export const setModel = (id: string, provider: string, modelId: string): Promise
   apiPut(`/session/${id}/model`, { provider, modelId })
 export const setThinking = (id: string, level: string): Promise<boolean> =>
   apiPut(`/session/${id}/thinking`, { level })
+export const getSessionSkills = (id: string): Promise<SkillInfo[]> =>
+  apiGet(`/session/${id}/skills`)
 export const getPendingQuestion = (sessionId: string): Promise<QuestionRequest | null> =>
   apiGet(`/session/${sessionId}/question`)
 export const questionReply = (requestId: string, answers: QuestionAnswer[]): Promise<boolean> =>

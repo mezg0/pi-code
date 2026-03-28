@@ -11,6 +11,7 @@ import {
   getPendingQuestion,
   getPermissionMode,
   getPlanMode,
+  getSessionSkills,
   sendSessionMessage,
   setModel,
   setPermissionMode,
@@ -78,4 +79,5 @@ export function registerSessionIpc(): void {
   ipcMain.handle('sessions:setPermissionMode', (_event, sessionId: string, mode: PermissionMode) =>
     setPermissionMode(sessionId, mode)
   )
+  ipcMain.handle('sessions:skills', (_event, sessionId: string) => getSessionSkills(sessionId))
 }

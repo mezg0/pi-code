@@ -24,7 +24,6 @@ import {
   PromptInputFooter,
   PromptInputHeader,
   PromptInputSubmit,
-  PromptInputTextarea,
   PromptInputTools,
   usePromptInputAttachments
 } from '@/components/ai-elements/prompt-input'
@@ -43,7 +42,10 @@ import type {
 import { clearSessionDraft, getSessionDraft, setSessionDraft } from '@/lib/session-drafts'
 import { SHORTCUTS } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
+import { useSkills } from '@/hooks/use-skills'
 
+import { MentionInput, type SerializedInput, type MentionInputHandle } from './mention-input'
+import { SkillPicker } from './skill-picker'
 import { ModelSelector } from './model-selector'
 import { PermissionDock } from './permission-dock'
 import { PermissionModeToggle } from './permission-mode-toggle'
@@ -358,71 +360,120 @@ function SessionPromptInput({
   onStop: () => Promise<void>
 }): React.JSX.Element {
   const [draftSessionId, setDraftSessionId] = useState(session.id)
-  const [input, setInput] = useState(() => getSessionDraft(session.id))
+  const [input, setInput] = useState<SerializedInput>(() => {
+    const draft = getSessionDraft(session.id)
+    return { text: draft, skills: [] }
+  })
+
+  // Skill picker state
+  const [skillPickerOpen, setSkillPickerOpen] = useState(false)
+  const [skillQuery, setSkillQuery] = useState('')
+  const [_triggerInfo, _setTriggerInfo] = useState<{ type: '/' | '$'; position: number } | null>(null)
+  const mentionRef = useRef<MentionInputHandle>(null)
+
+  const { skills } = useSkills(session.id)
 
   if (draftSessionId !== session.id) {
     setDraftSessionId(session.id)
-    setInput(getSessionDraft(session.id))
+    setInput({ text: getSessionDraft(session.id), skills: [] })
+    setSkillPickerOpen(false)
   }
 
   useEffect(() => {
-    setSessionDraft(session.id, input)
-  }, [input, session.id])
+    setSessionDraft(session.id, input.text)
+  }, [input.text, session.id])
 
   // Subscribe to react-grab element selections from the BrowserView.
-  // When context is grabbed, append it to the prompt input.
   useEffect(() => {
     return onBrowserGrab((event) => {
       const contextBlock = `\`\`\`html\n${event.content}\n\`\`\`\n\n`
-      setInput((prev) => {
-        // If the input already has content, append on a new line
-        if (prev.trim()) {
-          return prev + '\n' + contextBlock
-        }
-        return contextBlock
-      })
+      setInput((prev) => ({
+        ...prev,
+        text: prev.text.trim() ? prev.text + '\n' + contextBlock : contextBlock,
+      }))
 
-      // Focus the textarea so the user can immediately type their instruction
       requestAnimationFrame(() => {
-        const textarea = document.querySelector<HTMLTextAreaElement>(
-          'textarea[data-slot="input-group-control"]'
-        )
-        if (textarea) {
-          textarea.focus()
-          // Move cursor to the end
-          textarea.selectionStart = textarea.value.length
-          textarea.selectionEnd = textarea.value.length
-        }
+        mentionRef.current?.focus()
       })
     })
   }, [])
 
+  const handleTrigger = useCallback(
+    (trigger: { type: '/' | '$'; query: string; position: number }) => {
+      console.log('[session] handleTrigger', trigger, 'skills:', skills)
+      setSkillQuery(trigger.query)
+      _setTriggerInfo({ type: trigger.type, position: trigger.position })
+      setSkillPickerOpen(true)
+    },
+    [skills]
+  )
+
+  const handleTriggerClose = useCallback(() => {
+    setSkillPickerOpen(false)
+    setSkillQuery('')
+    _setTriggerInfo(null)
+  }, [])
+
+  const handleSkillSelect = useCallback(
+    (skill: { name: string }) => {
+      setSkillPickerOpen(false)
+      setSkillQuery('')
+      
+      // Insert skill chip via ref
+      mentionRef.current?.insertSkill(skill.name)
+    },
+    []
+  )
+
   const handleSubmit = useCallback(
     (message: { text: string; files: FileUIPart[] }): void => {
-      const text = message.text.trim()
-      if (!text && message.files.length === 0) return
+      // input state is already synced by MentionInput onChange
+      const { text, skills } = input
+
+      if (!text.trim() && message.files.length === 0 && skills.length === 0) return
+
       clearSessionDraft(session.id)
-      setInput('')
+      setInput({ text: '', skills: [] })
 
       const images: SessionImageInput[] = []
       for (const file of message.files) {
         if (file.mediaType?.startsWith('image/') && file.url) {
           const match = file.url.match(/^data:([^;]+);base64,(.+)$/)
           if (match) {
-            images.push({ data: match[2], mimeType: match[1] })
+            images.push({ data: match[2]!, mimeType: match[1]! })
           }
         }
       }
 
-      void onSend(text || 'Describe this image', images.length > 0 ? images : undefined)
+      // Build message text with skill instructions for the agent
+      let finalText = text
+      if (skills.length > 0) {
+        const skillInstructions = skills
+          .map((skill) => `Load and use the ${skill} skill for this task.`)
+          .join('\n')
+        finalText = `${skillInstructions}\n\n${text}`
+        // Embed skill markers at the beginning for UI rendering
+        const markers = skills.map((skill) => `<!--skill:${skill}-->`).join('')
+        finalText = `${markers}${finalText}`
+      }
+
+      void onSend(finalText || 'Describe this image', images.length > 0 ? images : undefined)
     },
-    [onSend, session.id]
+    [onSend, session.id, input]
   )
+
+  const placeholder = blocked
+    ? 'Respond above to continue…'
+    : isStreaming
+      ? 'Send to steer…'
+      : session.status === 'draft'
+        ? 'Send first message…'
+        : 'Send follow-up…'
 
   return (
     <div className="shrink-0 px-3 pb-3 sm:px-5">
       <div className="mx-auto w-full max-w-3xl">
-        {/* Pending message pills — from SDK queue via streaming events */}
+        {/* Pending message pills */}
         {pendingMessages.length > 0 && (
           <div className="mb-2 animate-fade-in-up overflow-hidden rounded-lg border border-border bg-muted/50">
             {pendingMessages.map((msg, i) => (
@@ -440,29 +491,35 @@ function SessionPromptInput({
           </div>
         )}
 
-        <PromptInput
-          onSubmit={(message) => handleSubmit(message)}
-          accept="image/*"
-          className={cn(
-            'w-full [&_[data-slot=input-group]]:transition-none',
-            blocked && 'pointer-events-none opacity-50'
-          )}
-        >
+        {/* Prompt input with skill picker overlay */}
+        <div className="relative">
+          <SkillPicker
+            open={skillPickerOpen}
+            skills={skills}
+            query={skillQuery}
+            onSelect={handleSkillSelect}
+            onClose={handleTriggerClose}
+          />
+
+          <PromptInput
+            onSubmit={(message) => handleSubmit(message)}
+            accept="image/*"
+            className={cn(
+              'w-full [&_[data-slot=input-group]]:transition-none',
+              blocked && 'pointer-events-none opacity-50'
+            )}
+          >
           <AttachmentBar />
           <PromptInputBody>
-            <PromptInputTextarea
+            <MentionInput
+              ref={mentionRef}
               value={input}
-              onChange={(event) => setInput(event.currentTarget.value)}
+              onChange={setInput}
+              onTrigger={handleTrigger}
+              onTriggerClose={handleTriggerClose}
               disabled={blocked}
-              placeholder={
-                blocked
-                  ? 'Respond above to continue…'
-                  : isStreaming
-                    ? 'Send to steer…'
-                    : session.status === 'draft'
-                      ? 'Send first message…'
-                      : 'Send follow-up…'
-              }
+              placeholder={placeholder}
+              className="min-h-[3.5rem] resize-none"
             />
           </PromptInputBody>
           <PromptInputFooter>
@@ -473,12 +530,17 @@ function SessionPromptInput({
             </PromptInputTools>
             <PromptInputSubmit
               status={
-                isStreaming && !input.trim() ? 'streaming' : isLoading ? 'submitted' : undefined
+                isStreaming && !input.text.trim() && input.skills.length === 0
+                  ? 'streaming'
+                  : isLoading
+                    ? 'submitted'
+                    : undefined
               }
               onStop={() => void onStop()}
             />
           </PromptInputFooter>
         </PromptInput>
+        </div>
       </div>
     </div>
   )
