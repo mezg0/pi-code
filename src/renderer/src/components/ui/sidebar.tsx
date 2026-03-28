@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/tooltip"
 import { PanelLeftIcon } from "lucide-react"
 
-const SIDEBAR_WIDTH = "16rem"
+const SIDEBAR_WIDTH = "18rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 // Keyboard shortcut for sidebar toggle is managed centrally in shortcuts.ts

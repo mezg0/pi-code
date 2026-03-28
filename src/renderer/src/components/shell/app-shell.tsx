@@ -48,7 +48,7 @@ import {
   saveToolPanelOpen,
   saveToolPanelSize
 } from '@/lib/view-state'
-import { groupSessions } from '@/lib/workspace'
+import { splitSessionsForSidebar } from '@/lib/workspace'
 
 import { CommitDialog } from './commit-dialog'
 import { SidebarProjects } from './sidebar-projects'
@@ -67,7 +67,8 @@ export function AppShell({
   onAddProject,
   onRemoveProject,
   onCreateSession,
-  onToggleArchiveSession
+  onToggleArchiveSession,
+  onTogglePinnedSession
 }: {
   projects: Project[]
   sessions: Session[]
@@ -85,6 +86,7 @@ export function AppShell({
     options?: { branch?: string | null; worktreePath?: string | null }
   ) => Promise<void>
   onToggleArchiveSession: (session: Session, archived: boolean) => Promise<void>
+  onTogglePinnedSession: (session: Session, pinned: boolean) => Promise<void>
 }): React.JSX.Element {
   const [sidebarOpen, setSidebarOpen] = useState(() => loadLeftSidebarOpen())
   const [toolPanelOpen, setToolPanelOpen] = useState(() => loadToolPanelOpen())
@@ -98,7 +100,10 @@ export function AppShell({
       return initial
     }
   )
-  const sessionGroups = useMemo(() => groupSessions(projects, sessions), [projects, sessions])
+  const { pinnedSessions, projectGroups: sessionGroups } = useMemo(
+    () => splitSessionsForSidebar(projects, sessions),
+    [projects, sessions]
+  )
   const prStatusMap = usePRStatus(sessions)
   const activePRStatus = activeSession ? prStatusMap.get(activeSession.id) : undefined
   // Use the worktree path when available so each workspace gets its own tool state
@@ -163,6 +168,7 @@ export function AppShell({
   return (
     <SidebarProvider open={sidebarOpen} onOpenChange={handleSidebarChange} className="h-full">
       <SidebarProjects
+        pinnedSessions={pinnedSessions}
         sessionGroups={sessionGroups}
         activeSession={activeSession}
         unreadSessionIds={unreadSessionIds}
@@ -173,6 +179,7 @@ export function AppShell({
         onRemoveProject={onRemoveProject}
         onCreateSession={onCreateSession}
         onToggleArchiveSession={onToggleArchiveSession}
+        onTogglePinnedSession={onTogglePinnedSession}
       />
 
       <AppShellContent
@@ -460,7 +467,10 @@ function AppShellContent({
                       <a href={activePRUrl} target="_blank" rel="noreferrer">
                         <GitPullRequestIcon data-icon="inline-start" />
                         View PR
-                        <ExternalLinkIcon data-icon="inline-end" className="size-3 text-muted-foreground" />
+                        <ExternalLinkIcon
+                          data-icon="inline-end"
+                          className="size-3 text-muted-foreground"
+                        />
                       </a>
                     </Button>
                   </TooltipTrigger>

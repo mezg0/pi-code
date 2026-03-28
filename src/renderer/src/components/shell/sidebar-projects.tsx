@@ -13,6 +13,8 @@ import {
   GitPullRequestIcon,
   LoaderCircleIcon,
   LoaderIcon,
+  PinIcon,
+  PinOffIcon,
   PlusIcon,
   Settings2Icon,
   ShieldAlertIcon,
@@ -72,6 +74,7 @@ const BUSY_STATUSES = new Set<SessionStatus>(['queued', 'starting', 'running', '
 const FAILED_STATUSES = new Set<SessionStatus>(['failed'])
 
 export function SidebarProjects({
+  pinnedSessions,
   sessionGroups,
   activeSession,
   unreadSessionIds,
@@ -81,8 +84,10 @@ export function SidebarProjects({
   onAddProject,
   onRemoveProject,
   onCreateSession,
-  onToggleArchiveSession
+  onToggleArchiveSession,
+  onTogglePinnedSession
 }: {
+  pinnedSessions: Session[]
   sessionGroups: SessionGroup[]
   activeSession: Session | null
   unreadSessionIds: Set<string>
@@ -96,6 +101,7 @@ export function SidebarProjects({
     options?: { branch?: string | null; worktreePath?: string | null }
   ) => Promise<void>
   onToggleArchiveSession: (session: Session, archived: boolean) => Promise<void>
+  onTogglePinnedSession: (session: Session, pinned: boolean) => Promise<void>
 }): React.JSX.Element {
   const [projectToRemove, setProjectToRemove] = useState<Project | null>(null)
   const { isMobile, setOpenMobile } = useSidebar()
@@ -106,6 +112,28 @@ export function SidebarProjects({
       <div className="drag-region h-11 shrink-0" />
 
       <SidebarContent>
+        {pinnedSessions.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {pinnedSessions.map((session) => (
+                  <SessionMenuEntry
+                    key={session.id}
+                    session={session}
+                    isActive={session.id === activeSession?.id}
+                    isUnread={unreadSessionIds.has(session.id)}
+                    hasQuestion={questionSessionIds.has(session.id)}
+                    hasPermission={permissionSessionIds.has(session.id)}
+                    prStatus={prStatusMap.get(session.id)}
+                    onToggleArchiveSession={onToggleArchiveSession}
+                    onTogglePinnedSession={onTogglePinnedSession}
+                    onNavigate={closeMobileSidebar}
+                  />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
         {sessionGroups.map((group) => {
           const activeSessions = group.sessions.filter((session) => !session.archived)
 
@@ -153,6 +181,7 @@ export function SidebarProjects({
                             hasPermission={permissionSessionIds.has(session.id)}
                             prStatus={prStatusMap.get(session.id)}
                             onToggleArchiveSession={onToggleArchiveSession}
+                            onTogglePinnedSession={onTogglePinnedSession}
                             onNavigate={closeMobileSidebar}
                           />
                         ))}
@@ -466,6 +495,7 @@ function SessionMenuEntry({
   hasPermission,
   prStatus,
   onToggleArchiveSession,
+  onTogglePinnedSession,
   onNavigate
 }: {
   session: Session
@@ -475,9 +505,11 @@ function SessionMenuEntry({
   hasPermission: boolean
   prStatus?: GitPRStatus
   onToggleArchiveSession: (session: Session, archived: boolean) => Promise<void>
+  onTogglePinnedSession: (session: Session, pinned: boolean) => Promise<void>
   onNavigate?: () => void
 }): React.JSX.Element {
   const [isArchiving, setIsArchiving] = useState(false)
+  const [isPinning, setIsPinning] = useState(false)
   const isBusy = BUSY_STATUSES.has(session.status)
   const isFailed = FAILED_STATUSES.has(session.status)
 
@@ -497,7 +529,38 @@ function SessionMenuEntry({
 
   return (
     <SidebarMenuItem className={isArchiving ? 'pointer-events-none opacity-50' : undefined}>
-      <SidebarMenuButton isActive={isActive} tooltip={session.title} asChild>
+      {/* Pin action - positioned on the left */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <SidebarMenuAction
+            showOnHover
+            className="left-1 right-auto"
+            aria-label={session.pinned ? 'Unpin session' : 'Pin session'}
+            disabled={isPinning}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              setIsPinning(true)
+              void onTogglePinnedSession(session, !session.pinned).finally(() =>
+                setIsPinning(false)
+              )
+            }}
+          >
+            {isPinning ? (
+              <LoaderIcon className="size-3.5 animate-spin" />
+            ) : session.pinned ? (
+              <PinOffIcon className="size-3.5" />
+            ) : (
+              <PinIcon className="size-3.5" />
+            )}
+          </SidebarMenuAction>
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          {session.pinned ? 'Unpin session' : 'Pin session'}
+        </TooltipContent>
+      </Tooltip>
+
+      <SidebarMenuButton isActive={isActive} tooltip={session.title} asChild className="pl-7">
         <Link
           to="/sessions/$sessionId/overview"
           params={{ sessionId: session.id }}
@@ -522,6 +585,7 @@ function SessionMenuEntry({
         </Link>
       </SidebarMenuButton>
 
+      {/* Archive action - positioned on the right */}
       <Tooltip>
         <TooltipTrigger asChild>
           <SidebarMenuAction
@@ -535,7 +599,11 @@ function SessionMenuEntry({
               void onToggleArchiveSession(session, true).finally(() => setIsArchiving(false))
             }}
           >
-            <ArchiveIcon />
+            {isArchiving ? (
+              <LoaderIcon className="size-3.5 animate-spin" />
+            ) : (
+              <ArchiveIcon className="size-3.5" />
+            )}
           </SidebarMenuAction>
         </TooltipTrigger>
         <TooltipContent side="right">Archive session</TooltipContent>
