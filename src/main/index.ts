@@ -1,5 +1,9 @@
+import { execFile } from 'child_process'
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { mkdtempSync, readFileSync, rmSync } from 'fs'
+import { tmpdir } from 'os'
 import { join } from 'path'
+import { promisify } from 'util'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { createServer, type PiServer } from '@pi-code/server'
 import { setRemoteAccessHandlers } from '@pi-code/server/remote'
@@ -30,6 +34,42 @@ let remoteConfig: RemoteAccessConfig = { enabled: false, port: 4311, password: n
 const sidecarServerReady = new Promise<void>((resolve) => {
   resolveSidecarReady = resolve
 })
+const execFileAsync = promisify(execFile)
+
+function quoteShellArg(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+async function loadMacShellEnvironment(): Promise<void> {
+  if (process.platform !== 'darwin') return
+
+  const shellPath = process.env.SHELL || '/bin/zsh'
+  const tempDir = mkdtempSync(join(tmpdir(), 'pi-code-shell-env-'))
+  const envFile = join(tempDir, 'env.txt')
+
+  try {
+    await execFileAsync(shellPath, ['-ilc', `env -0 > ${quoteShellArg(envFile)}`], {
+      timeout: 15000,
+      maxBuffer: 1024 * 1024
+    })
+
+    const entries = readFileSync(envFile, 'utf8').split('\u0000')
+    for (const entry of entries) {
+      const separatorIndex = entry.indexOf('=')
+      if (separatorIndex <= 0) continue
+
+      const key = entry.slice(0, separatorIndex)
+      const value = entry.slice(separatorIndex + 1)
+      process.env[key] = value
+    }
+
+    console.info(`[main] Loaded login shell environment from ${shellPath}`)
+  } catch (error) {
+    console.warn('[main] Failed to load macOS shell environment:', error)
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true })
+  }
+}
 
 export function getSidecarServerUrl(): string {
   return piServer?.local.url ?? 'http://127.0.0.1:4310'
@@ -77,7 +117,9 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await loadMacShellEnvironment()
+
   electronApp.setAppUserModelId('com.electron')
 
   app.on('browser-window-created', (_, window) => {

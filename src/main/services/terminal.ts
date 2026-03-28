@@ -16,12 +16,17 @@ function getShell(): string {
   return process.env.SHELL || '/bin/zsh'
 }
 
+function getShellArgs(): string[] {
+  if (platform() === 'win32') return []
+  return ['-l']
+}
+
 export function openTerminal(id: string, cwd: string): string {
   const existing = terminals.get(id)
   if (existing) return existing.buffer
 
   const shell = getShell()
-  const proc = pty.spawn(shell, [], {
+  const proc = pty.spawn(shell, getShellArgs(), {
     name: 'xterm-256color',
     cols: 80,
     rows: 24,
