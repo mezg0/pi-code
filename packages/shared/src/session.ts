@@ -55,6 +55,12 @@ export type SessionImageInput = {
   mimeType: string
 }
 
+export type SkillInfo = {
+  name: string
+  description: string
+  source: 'project' | 'personal'
+}
+
 export type SessionMessagesPayload = {
   sessionId: string
   messages: AgentMessage[]
@@ -316,6 +322,7 @@ export type SessionApi = {
     getAvailableModels(id: string): Promise<ModelInfo[]>
     setModel(id: string, provider: string, modelId: string): Promise<boolean>
     setThinking(id: string, level: string): Promise<boolean>
+    getSkills(id: string): Promise<SkillInfo[]>
     onUpdated(listener: (session: Session) => void): () => void
     onMessages(listener: (payload: SessionMessagesPayload) => void): () => void
     onStreaming(listener: (payload: SessionStreamingPayload) => void): () => void

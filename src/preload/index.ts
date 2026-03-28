@@ -71,6 +71,8 @@ const api: SessionApi = {
       ipcRenderer.invoke('sessions:setModel', id, provider, modelId) as Promise<boolean>,
     setThinking: (id: string, level: string) =>
       ipcRenderer.invoke('sessions:setThinking', id, level) as Promise<boolean>,
+    getSkills: (id: string) =>
+      ipcRenderer.invoke('sessions:skills', id) as ReturnType<SessionApi['sessions']['getSkills']>,
     onUpdated: (listener): (() => void) => {
       const handler = (_event: unknown, session: Session): void => listener(session)
       ipcRenderer.on('sessions:updated', handler)
