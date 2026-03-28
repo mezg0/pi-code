@@ -191,7 +191,7 @@ const PERMISSION_MODE_OPTIONS: Array<{
   {
     mode: 'auto',
     label: 'Auto',
-    description: 'Allow all tool calls automatically.',
+    description: 'Allow all tools and external directory access automatically.',
     icon: ShieldCheckIcon,
     accentClass: 'border-green-500/30 bg-green-500/5'
   },
