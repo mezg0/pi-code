@@ -561,7 +561,7 @@ function SessionMenuEntry({
         </TooltipContent>
       </Tooltip>
 
-      <SidebarMenuButton isActive={isActive} tooltip={session.title} asChild>
+      <SidebarMenuButton isActive={isActive} tooltip={session.title} asChild className="pl-8">
         <Link
           to="/sessions/$sessionId/overview"
           params={{ sessionId: session.id }}
