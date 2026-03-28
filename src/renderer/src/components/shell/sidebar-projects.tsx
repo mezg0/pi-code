@@ -6,6 +6,7 @@ import {
   ChevronRightIcon,
   CircleIcon,
   CircleXIcon,
+  EllipsisIcon,
   FolderPlusIcon,
   GitBranchIcon,
   GitMergeIcon,
