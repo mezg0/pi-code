@@ -299,8 +299,8 @@ function PermissionsSection(): React.JSX.Element {
         </div>
 
         <div className="rounded-lg border border-dashed border-border px-4 py-3 text-xs text-muted-foreground">
-          Applies to new sessions and any existing session still using the default. You can still
-          change a specific session from its permission control in the chat header.
+          Applies to new sessions only. You can still change a specific session from its permission
+          control in the chat header.
         </div>
 
         {(settingsQuery.isError || updateMutation.isError) && (

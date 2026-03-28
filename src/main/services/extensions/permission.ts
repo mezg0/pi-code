@@ -5,7 +5,12 @@ import { createTwoFilesPatch } from 'diff'
 import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
 import type { PermissionMode } from '@pi-code/shared/session'
 import { getCachedDefaultPermissionMode, getAppSettings } from '../settings'
-import { getSession, getSessionIdForFile } from '../session-manager'
+import {
+  getSession,
+  getSessionIdForFile,
+  getStoredSessionPermissionMode,
+  setStoredSessionPermissionMode
+} from '../session-manager'
 import {
   arePatternsAlwaysApproved,
   askPermission,
@@ -414,7 +419,11 @@ export default function permissionExtension(pi: ExtensionAPI): void {
         // In strict mode, always ask. In ask mode, ask only if not always-approved.
         const shouldAskExternal =
           mode === 'strict' ||
-          !arePatternsAlwaysApproved(sessionId, externalRequest.permission, externalRequest.patterns)
+          !arePatternsAlwaysApproved(
+            sessionId,
+            externalRequest.permission,
+            externalRequest.patterns
+          )
         if (shouldAskExternal) {
           await askPermission(sessionId, event.toolName, event.toolCallId, input, externalRequest)
         }
@@ -438,7 +447,7 @@ export default function permissionExtension(pi: ExtensionAPI): void {
   pi.on('session_start', async (_event, ctx) => {
     const sessionFile = ctx.sessionManager.getSessionFile?.() ?? null
     registeredSessionFile = sessionFile
-    registeredSessionId = sessionFile ? getSessionIdForFile(sessionFile) ?? null : null
+    registeredSessionId = sessionFile ? (getSessionIdForFile(sessionFile) ?? null) : null
 
     await getAppSettings()
 
@@ -451,7 +460,16 @@ export default function permissionExtension(pi: ExtensionAPI): void {
       )
       .pop() as PermissionModeEntry | undefined
 
-    permissionModeOverride = lastEntry?.data?.mode ?? null
+    const storedMode = registeredSessionId
+      ? await getStoredSessionPermissionMode(registeredSessionId)
+      : undefined
+
+    permissionModeOverride = storedMode ?? lastEntry?.data?.mode ?? null
+
+    if (!permissionModeOverride && registeredSessionId) {
+      permissionModeOverride = getCachedDefaultPermissionMode()
+      void setStoredSessionPermissionMode(registeredSessionId, permissionModeOverride)
+    }
 
     if (sessionFile) {
       registerPermissionModeController(sessionFile, {
@@ -461,12 +479,14 @@ export default function permissionExtension(pi: ExtensionAPI): void {
           permissionModeOverride = mode
           pi.appendEntry('permission-mode', { mode })
 
-          if (mode === 'auto' && oldMode !== 'auto') {
-            const sessionId = registeredSessionId ?? resolveSessionId()
-            if (sessionId) {
-              registeredSessionId = sessionId
-              approveAllPermissionsForSession(sessionId)
-            }
+          const sessionId = registeredSessionId ?? resolveSessionId()
+          if (sessionId) {
+            registeredSessionId = sessionId
+            void setStoredSessionPermissionMode(sessionId, mode)
+          }
+
+          if (mode === 'auto' && oldMode !== 'auto' && sessionId) {
+            approveAllPermissionsForSession(sessionId)
           }
         }
       })
