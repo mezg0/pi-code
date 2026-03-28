@@ -114,7 +114,6 @@ export function SidebarProjects({
       <SidebarContent>
         {pinnedSessions.length > 0 && (
           <SidebarGroup>
-            <SidebarGroupLabel>Pinned</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {pinnedSessions.map((session) => (
