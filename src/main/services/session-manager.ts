@@ -25,6 +25,8 @@ type StoredSessionMetadata = {
   worktreeInfo?: Record<string, StoredSessionWorktreeInfo>
   /** Per-session permission mode snapshot, keyed by session id */
   permissionModes?: Record<string, PermissionMode>
+  /** Pinned session ids for quick access in sidebar */
+  pinnedSessionIds?: string[]
 }
 
 const SESSION_METADATA_FILE = 'session-metadata.json'
@@ -35,6 +37,7 @@ const sessionFiles = new Map<string, string>()
 let archivedSessionIdsCache: Set<string> | null = null
 let worktreeInfoCache: Record<string, StoredSessionWorktreeInfo> | null = null
 let permissionModesCache: Record<string, PermissionMode> | null = null
+let pinnedSessionIdsCache: Set<string> | null = null
 
 function getSessionMetadataPath(): string {
   return join(app.getPath('userData'), SESSION_METADATA_FILE)
@@ -62,10 +65,13 @@ async function readStoredSessionMetadata(): Promise<StoredSessionMetadata> {
                 }
               )
             )
-          : {}
+          : {},
+      pinnedSessionIds: Array.isArray(parsed.pinnedSessionIds)
+        ? parsed.pinnedSessionIds.filter((id): id is string => typeof id === 'string')
+        : []
     }
   } catch {
-    return { archivedSessionIds: [], worktreeInfo: {}, permissionModes: {} }
+    return { archivedSessionIds: [], worktreeInfo: {}, permissionModes: {}, pinnedSessionIds: [] }
   }
 }
 
@@ -84,6 +90,7 @@ async function writeSessionMetadata(): Promise<void> {
   const archivedIds = archivedSessionIdsCache ?? new Set<string>()
   const wtInfo = worktreeInfoCache ?? {}
   const permissionModes = permissionModesCache ?? {}
+  const pinnedIds = pinnedSessionIdsCache ?? new Set<string>()
 
   const filePath = getSessionMetadataPath()
   await mkdir(dirname(filePath), { recursive: true })
@@ -93,7 +100,8 @@ async function writeSessionMetadata(): Promise<void> {
       {
         archivedSessionIds: Array.from(archivedIds),
         worktreeInfo: wtInfo,
-        permissionModes
+        permissionModes,
+        pinnedSessionIds: Array.from(pinnedIds)
       },
       null,
       2
@@ -113,6 +121,30 @@ async function setArchivedState(id: string, archived: boolean): Promise<void> {
   }
 
   archivedSessionIdsCache = next
+  await writeSessionMetadata()
+}
+
+async function getPinnedSessionIds(): Promise<Set<string>> {
+  if (pinnedSessionIdsCache) {
+    return pinnedSessionIdsCache
+  }
+
+  const stored = await readStoredSessionMetadata()
+  pinnedSessionIdsCache = new Set(stored.pinnedSessionIds)
+  return pinnedSessionIdsCache
+}
+
+async function setPinnedState(id: string, pinned: boolean): Promise<void> {
+  const pinnedSessionIds = await getPinnedSessionIds()
+  const next = new Set(pinnedSessionIds)
+
+  if (pinned) {
+    next.add(id)
+  } else {
+    next.delete(id)
+  }
+
+  pinnedSessionIdsCache = next
   await writeSessionMetadata()
 }
 
@@ -178,7 +210,8 @@ function toSession(
     path: string
   },
   archivedSessionIds: Set<string>,
-  worktreeInfoMap: Record<string, StoredSessionWorktreeInfo>
+  worktreeInfoMap: Record<string, StoredSessionWorktreeInfo>,
+  pinnedSessionIds: Set<string>
 ): Session {
   sessionFiles.set(info.id, info.path)
 
@@ -193,6 +226,7 @@ function toSession(
     model: DEFAULT_MODEL,
     status: info.firstMessage ? 'awaiting_input' : 'draft',
     archived: archivedSessionIds.has(info.id),
+    pinned: pinnedSessionIds.has(info.id),
     createdAt: info.created.toISOString(),
     updatedAt: info.modified.toISOString(),
     branch: wtInfo?.branch ?? null,
@@ -208,10 +242,11 @@ export async function listSessions(): Promise<Session[]> {
   const projects = await listProjects()
   const archivedSessionIds = await getArchivedSessionIds()
   const wtInfoMap = await getWorktreeInfoMap()
+  const pinnedSessionIds = await getPinnedSessionIds()
   const sessionsByProject = await Promise.all(
     projects.map(async (project) => {
       const infos = await SessionManager.list(project.repoPath)
-      return infos.map((info) => toSession(project, info, archivedSessionIds, wtInfoMap))
+      return infos.map((info) => toSession(project, info, archivedSessionIds, wtInfoMap, pinnedSessionIds))
     })
   )
 
@@ -270,6 +305,7 @@ export async function createSession(input: CreateSessionInput): Promise<Session>
     model: input.model,
     status: 'draft',
     archived: false,
+    pinned: false,
     createdAt: now,
     updatedAt: now,
     branch,
@@ -296,6 +332,14 @@ export async function updateSession(
 
   if (typeof input.archived === 'boolean') {
     await setArchivedState(id, input.archived)
+    // Archiving clears pinned state
+    if (input.archived) {
+      await setPinnedState(id, false)
+    }
+  }
+
+  if (typeof input.pinned === 'boolean' && !input.archived) {
+    await setPinnedState(id, input.pinned)
   }
 
   const updatedAt = new Date().toISOString()
@@ -310,5 +354,6 @@ export async function deleteSession(id: string): Promise<boolean> {
   await setArchivedState(id, false)
   await setStoredSessionPermissionMode(id, null)
   await setWorktreeInfo(id, null, null)
+  await setPinnedState(id, false)
   return true
 }

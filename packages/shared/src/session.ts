@@ -23,6 +23,7 @@ export type Session = {
   model: string
   status: SessionStatus
   archived: boolean
+  pinned: boolean
   createdAt: string
   updatedAt: string
   branch: string | null
@@ -46,7 +47,7 @@ export type CreateSessionInput = {
 }
 
 export type UpdateSessionInput = Partial<
-  Pick<Session, 'title' | 'taskInstruction' | 'agent' | 'model' | 'status' | 'archived'>
+  Pick<Session, 'title' | 'taskInstruction' | 'agent' | 'model' | 'status' | 'archived' | 'pinned'>
 >
 
 export type SessionImageInput = {

@@ -21,14 +21,28 @@ export function groupSessions(projects: Project[], sessions: Session[]): Session
   }))
 }
 
-export function upsertSession(sessions: Session[], nextSession: Session): Session[] {
-  const existingIndex = sessions.findIndex((session) => session.id === nextSession.id)
+export type SidebarSessionSplit = {
+  pinnedSessions: Session[]
+  projectGroups: SessionGroup[]
+}
 
-  if (existingIndex === -1) {
-    return sortSessionsByUpdatedAt([...sessions, nextSession])
-  }
-
-  return sortSessionsByUpdatedAt(
-    sessions.map((session) => (session.id === nextSession.id ? nextSession : session))
+export function splitSessionsForSidebar(
+  projects: Project[],
+  sessions: Session[]
+): SidebarSessionSplit {
+  // Get non-archived pinned sessions, sorted by updatedAt
+  const pinnedSessions = sortSessionsByUpdatedAt(
+    sessions.filter((session) => session.pinned && !session.archived)
   )
+
+  // Get unpinned sessions grouped by project
+  const unpinnedSessions = sessions.filter((session) => !session.pinned)
+  const projectGroups = projects.map((project) => ({
+    project,
+    sessions: sortSessionsByUpdatedAt(
+      unpinnedSessions.filter((session) => session.repoPath === project.repoPath)
+    )
+  }))
+
+  return { pinnedSessions, projectGroups }
 }

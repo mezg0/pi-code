@@ -320,6 +320,11 @@ function RootComponent(): React.JSX.Element {
     await router.invalidate()
   }
 
+  async function handleTogglePinnedSession(session: Session, pinned: boolean): Promise<void> {
+    await updateSession(session.id, { pinned })
+    await router.invalidate()
+  }
+
   // --- Global keyboard shortcuts ---
   const activeProject = workspace.projects.find((p) => p.repoPath === activeSession?.repoPath)
   const firstProject = workspace.projects[0]
@@ -354,6 +359,7 @@ function RootComponent(): React.JSX.Element {
         onRemoveProject={handleRemoveProject}
         onCreateSession={handleCreateSession}
         onToggleArchiveSession={handleToggleArchiveSession}
+        onTogglePinnedSession={handleTogglePinnedSession}
       >
         <Outlet />
       </AppShell>
