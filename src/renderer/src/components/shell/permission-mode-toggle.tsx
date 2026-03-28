@@ -36,7 +36,7 @@ const MODE_CONFIG: Record<
   },
   auto: {
     label: 'Auto',
-    description: 'Allow all tools automatically',
+    description: 'Allow all tools and external directory access automatically',
     icon: ShieldCheckIcon,
     buttonClass:
       'border-green-500/30 bg-green-500/5 text-green-600 hover:bg-green-500/10 dark:text-green-400'

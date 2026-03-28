@@ -408,14 +408,19 @@ export default function permissionExtension(pi: ExtensionAPI): void {
     )
 
     try {
-      if (
-        externalRequest &&
-        !arePatternsAlwaysApproved(sessionId, externalRequest.permission, externalRequest.patterns)
-      ) {
-        await askPermission(sessionId, event.toolName, event.toolCallId, input, externalRequest)
+      // External directory access is a security boundary — respect the permission mode
+      const mode = getCurrentPermissionMode()
+      if (externalRequest && mode !== 'auto') {
+        // In strict mode, always ask. In ask mode, ask only if not always-approved.
+        const shouldAskExternal =
+          mode === 'strict' ||
+          !arePatternsAlwaysApproved(sessionId, externalRequest.permission, externalRequest.patterns)
+        if (shouldAskExternal) {
+          await askPermission(sessionId, event.toolName, event.toolCallId, input, externalRequest)
+        }
       }
 
-      const action = getActionForTool(event.toolName, getCurrentPermissionMode())
+      const action = getActionForTool(event.toolName, mode)
       if (action === 'allow') return
 
       const request = await buildToolRequestOptions(event.toolName, input, root)

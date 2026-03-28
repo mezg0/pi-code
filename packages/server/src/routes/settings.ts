@@ -29,7 +29,10 @@ export function createSettingsRoutes(): Hono {
     }
 
     const settings = await updateAppSettings(body ?? {})
-    await syncPermissionModesWithDefault()
+    // Fire-and-forget: don't block the response while syncing modes across all sessions
+    syncPermissionModesWithDefault().catch((err) => {
+      console.error('[settings] Background syncPermissionModesWithDefault failed:', err)
+    })
     return c.json(settings)
   })
 
