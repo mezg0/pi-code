@@ -228,6 +228,29 @@ function extractUserImages(message: PiMessage): ImageBlock[] {
   return (message.content as ContentBlock[]).filter(isImageBlock)
 }
 
+/**
+ * Merge consecutive assistant messages into a single virtual message so that
+ * tool-call grouping (e.g. "Gathered context") works across agentic turns.
+ * Without this, two back-to-back assistant messages each containing read calls
+ * would render as two separate "Gathered context" groups.
+ */
+function mergeConsecutiveAssistantMessages(messages: PiMessage[]): PiMessage[] {
+  const result: PiMessage[] = []
+  for (const msg of messages) {
+    const last = result[result.length - 1]
+    if (msg.role === 'assistant' && Array.isArray(msg.content) && last?.role === 'assistant') {
+      const prevContent = Array.isArray(last.content) ? (last.content as ContentBlock[]) : []
+      result[result.length - 1] = {
+        ...last,
+        content: [...prevContent, ...(msg.content as ContentBlock[])]
+      }
+    } else {
+      result.push(msg)
+    }
+  }
+  return result
+}
+
 function buildToolResultsMap(messages: PiMessage[]): Map<string, PiMessage> {
   const map = new Map<string, PiMessage>()
   for (const msg of messages) {
@@ -600,12 +623,17 @@ const StableMessageList = memo(function StableMessageList({
   toolResultsById: Map<string, PiMessage>
   scrollContainerRef: React.RefObject<HTMLElement | null>
 }): React.JSX.Element {
+  const mergedMessages = useMemo(
+    () => mergeConsecutiveAssistantMessages(displayMessages),
+    [displayMessages]
+  )
+
   return (
     <>
       {hasMore && (
         <LoadMoreTrigger onLoadMore={onLoadMore} scrollContainerRef={scrollContainerRef} />
       )}
-      {displayMessages.map((msg, localIndex) => {
+      {mergedMessages.map((msg, localIndex) => {
         const globalIndex = globalIndexOffset + localIndex
         const key = stableMessageKey(msg, globalIndex)
 
