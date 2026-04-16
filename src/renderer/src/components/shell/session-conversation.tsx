@@ -85,6 +85,43 @@ export function SessionConversation(props: {
     [scrollRef]
   )
 
+  // --- Synchronous bottom-pin during streaming ---
+  // `use-stick-to-bottom` defers its resize-driven scroll into a requestAnimationFrame,
+  // which lets the browser paint one frame where the new content sits below the
+  // visible viewport (it appears to slide under the composer before snapping back).
+  //
+  // To eliminate that one-frame flicker we attach our own ResizeObserver on the
+  // content element. ResizeObserver callbacks fire after layout but BEFORE paint,
+  // so writing `scrollTop = scrollHeight` here pins the bottom in the same frame
+  // as the new content — no peek-under, no catch-up jump.
+  const contentElRef = useRef<HTMLDivElement | null>(null)
+  const setContentRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      contentElRef.current = el
+      // Forward to useStickToBottom
+      ;(contentRef as React.RefCallback<HTMLDivElement>)(el)
+    },
+    [contentRef]
+  )
+
+  useLayoutEffect(() => {
+    const contentEl = contentElRef.current
+    if (!contentEl || typeof ResizeObserver === 'undefined') return
+
+    const observer = new ResizeObserver(() => {
+      const scrollEl = scrollContainerRef.current
+      if (!scrollEl) return
+      // Only pin when the user is already near the bottom — never yank them
+      // back if they've scrolled up to read.
+      if (!isScrollContainerNearBottom(scrollEl)) return
+      // Synchronous write: lands in the same frame as the layout change.
+      scrollEl.scrollTop = scrollEl.scrollHeight
+    })
+
+    observer.observe(contentEl)
+    return () => observer.disconnect()
+  }, [])
+
   // Scroll to bottom on initial mount once messages are rendered
   const hasMessages = props.messages.length > 0
   useEffect(() => {
@@ -237,7 +274,7 @@ export function SessionConversation(props: {
           }}
           onClickCapture={onMessagesClickCapture}
         >
-          <div ref={contentRef} className="mx-auto flex min-h-full w-full max-w-[700px] flex-col">
+          <div ref={setContentRef} className="mx-auto flex min-h-full w-full max-w-[700px] flex-col">
             {props.messages.length === 0 && !props.isStreaming && !props.isLoading && (
               <ConversationEmptyState
                 className="flex-1"
