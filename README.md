@@ -77,6 +77,36 @@ npm run build:linux
 
 Built artifacts are output to the `dist/` directory.
 
+### macOS notarization
+
+This project is configured to notarize macOS builds automatically when Apple credentials are present in the environment.
+
+Recommended setup uses an App Store Connect API key:
+
+```bash
+export APPLE_API_KEY=/absolute/path/to/AuthKey_XXXXXXXXXX.p8
+export APPLE_API_KEY_ID=XXXXXXXXXX
+export APPLE_API_ISSUER=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+```
+
+Alternative Apple ID setup:
+
+```bash
+export APPLE_ID=you@example.com
+export APPLE_APP_SPECIFIC_PASSWORD=xxxx-xxxx-xxxx-xxxx
+export APPLE_TEAM_ID=XXXXXXXXXX
+```
+
+You'll also need a valid **Developer ID Application** certificate installed in your macOS keychain.
+
+Then build as usual:
+
+```bash
+npm run build:mac
+```
+
+If the required Apple environment variables are set, `electron-builder` will sign and notarize the app during the macOS build.
+
 ## Project Structure
 
 ```

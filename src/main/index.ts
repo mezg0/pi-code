@@ -18,6 +18,7 @@ import { registerTerminalIpc } from './ipc/terminal'
 import { disposeAllBrowsers } from './services/browser'
 import { disposeAllWatchers } from './services/file-watcher'
 import { disposeAllSessions } from './services/pi-runner'
+import { warmSessionsCache } from './services/session-manager'
 import { disposeAllTerminals } from './services/terminal'
 import {
   generatePassword,
@@ -235,6 +236,11 @@ app.whenReady().then(async () => {
   })()
 
   createWindow()
+
+  // Scan every project's session directory ahead of the first route load so
+  // that the initial getSession()/listSessions() call from the renderer hits
+  // a warm in-memory cache instead of doing ~100-200ms of fs work.
+  void warmSessionsCache()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
