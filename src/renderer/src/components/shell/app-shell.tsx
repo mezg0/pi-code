@@ -21,7 +21,6 @@ import {
 
 import { BranchPicker } from './branch-picker'
 import { OpenInEditor } from './open-in-editor'
-import { useModelShortcuts } from '@/hooks/use-model-shortcuts'
 import { usePRStatus } from '@/hooks/use-pr-status'
 
 import type { GroupImperativeHandle } from 'react-resizable-panels'
@@ -30,7 +29,6 @@ import { Button } from '@/components/ui/button'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useHotkey } from '@tanstack/react-hotkeys'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { extractLatestPlan, getPlanMessageKey } from '@/lib/plan'
 import { getGitStatus, isGitRepo } from '@/lib/git'
@@ -42,7 +40,8 @@ import {
   type Project,
   type Session
 } from '@/lib/sessions'
-import { getShortcutDisplay, SHORTCUTS } from '@/lib/shortcuts'
+import { useShortcutAction } from '@/lib/shortcut-actions'
+import { getShortcutDisplay } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 import {
   loadLeftSidebarOpen,
@@ -408,55 +407,52 @@ function AppShellContent({
     setCommitOpen(open)
   }
 
-  // --- Shell keyboard shortcuts ---
-  useHotkey(SHORTCUTS['toggle-sidebar'].keys, toggleSidebar)
+  // --- Shell keyboard actions ---
+  useShortcutAction('toggle-sidebar', toggleSidebar)
 
   const hasSession = Boolean(activeSession)
 
-  useHotkey(
-    SHORTCUTS['toggle-panel'].keys,
+  useShortcutAction(
+    'toggle-panel',
     useCallback(() => toggleToolPanel(), [toggleToolPanel]),
     {
       enabled: hasSession
     }
   )
 
-  useHotkey(
-    SHORTCUTS['open-commit'].keys,
+  useShortcutAction(
+    'open-commit',
     useCallback(() => {
       if (cwd && hasChanges) setCommitOpen(true)
     }, [cwd, hasChanges]),
     { enabled: hasSession }
   )
 
-  useHotkey(
-    SHORTCUTS['tab-plan'].keys,
+  useShortcutAction(
+    'tab-plan',
     useCallback(() => setActiveToolTab('plan'), [setActiveToolTab]),
     { enabled: hasSession }
   )
-  useHotkey(
-    SHORTCUTS['tab-git'].keys,
+  useShortcutAction(
+    'tab-git',
     useCallback(() => setActiveToolTab('git'), [setActiveToolTab]),
     { enabled: hasSession }
   )
-  useHotkey(
-    SHORTCUTS['tab-terminal'].keys,
+  useShortcutAction(
+    'tab-terminal',
     useCallback(() => setActiveToolTab('terminal'), [setActiveToolTab]),
     { enabled: hasSession }
   )
-  useHotkey(
-    SHORTCUTS['tab-files'].keys,
+  useShortcutAction(
+    'tab-files',
     useCallback(() => setActiveToolTab('files'), [setActiveToolTab]),
     { enabled: hasSession }
   )
-  useHotkey(
-    SHORTCUTS['tab-browser'].keys,
+  useShortcutAction(
+    'tab-browser',
     useCallback(() => setActiveToolTab('browser'), [setActiveToolTab]),
     { enabled: hasSession }
   )
-
-  // Model shortcuts (Mod+Shift+1–9)
-  useModelShortcuts(activeSession?.id)
 
   return (
     <SidebarInset className="flex min-w-0 flex-col overflow-hidden bg-background">

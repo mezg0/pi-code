@@ -30,7 +30,6 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { useHotkey } from '@tanstack/react-hotkeys'
 import { onBrowserGrab } from '@/lib/browser-grab'
 import { isScrollContainerNearBottom } from '@/lib/chat-scroll'
 import type {
@@ -41,7 +40,7 @@ import type {
   SessionImageInput
 } from '@/lib/sessions'
 import { clearSessionDraft, getSessionDraft, setSessionDraft } from '@/lib/session-drafts'
-import { SHORTCUTS } from '@/lib/shortcuts'
+import { useShortcutAction } from '@/lib/shortcut-actions'
 import { cn } from '@/lib/utils'
 
 import { ModelSelector } from './model-selector'
@@ -238,9 +237,9 @@ export function SessionConversation(props: {
     return () => cancelPendingAnchorAdjustment()
   }, [cancelPendingAnchorAdjustment])
 
-  // --- Session keyboard shortcuts ---
-  useHotkey(
-    SHORTCUTS['stop-response'].keys,
+  // --- Session keyboard actions ---
+  useShortcutAction(
+    'stop-response',
     useCallback(() => {
       if (isLoading || isStreaming) {
         void onStop()
@@ -248,13 +247,13 @@ export function SessionConversation(props: {
     }, [isLoading, isStreaming, onStop])
   )
 
-  useHotkey(
-    SHORTCUTS['scroll-to-bottom'].keys,
+  useShortcutAction(
+    'scroll-to-bottom',
     useCallback(() => scrollToBottom(), [scrollToBottom])
   )
 
-  useHotkey(
-    SHORTCUTS['focus-input'].keys,
+  useShortcutAction(
+    'focus-input',
     useCallback(() => {
       const textarea = document.querySelector<HTMLTextAreaElement>(
         'textarea[data-slot="input-group-control"]'
@@ -274,7 +273,10 @@ export function SessionConversation(props: {
           }}
           onClickCapture={onMessagesClickCapture}
         >
-          <div ref={setContentRef} className="mx-auto flex min-h-full w-full max-w-[700px] flex-col">
+          <div
+            ref={setContentRef}
+            className="mx-auto flex min-h-full w-full max-w-[700px] flex-col"
+          >
             {props.messages.length === 0 && !props.isStreaming && !props.isLoading && (
               <ConversationEmptyState
                 className="flex-1"

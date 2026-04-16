@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { BrainIcon, CheckIcon, ChevronDownIcon } from 'lucide-react'
 
 import {
@@ -10,7 +10,6 @@ import {
   ModelSelectorItem,
   ModelSelectorList,
   ModelSelectorName,
-  ModelSelectorShortcut,
   ModelSelectorTrigger
 } from '@/components/ai-elements/model-selector'
 import {
@@ -19,15 +18,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
-import { loadModelShortcuts } from '@/lib/model-shortcuts'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   useSessionAvailableModels,
   useSessionRuntimeMutations,
   useSessionRuntimeState
 } from '@/lib/session-runtime-query'
+import { useShortcutAction } from '@/lib/shortcut-actions'
 import { cn } from '@/lib/utils'
 import type { ModelInfo } from '@/lib/sessions'
-import { getModelShortcutDisplay } from '@/lib/shortcuts'
+import { getShortcutDisplay } from '@/lib/shortcuts'
 
 function formatProviderLabel(provider: string): string {
   switch (provider) {
@@ -42,7 +42,7 @@ function formatModelDisplayName(modelId: string): string {
   // Extract just the last part of path-like IDs
   // e.g., "accounts/fireworks/routers/kimi-k2p5-turbo" → "kimi-k2p5-turbo"
   const lastSegment = modelId.split('/').pop() ?? modelId
-  
+
   // Format nicely: replace hyphens with spaces, but preserve version numbers
   // e.g., "kimi-k2p5-turbo" → "kimi k2.5 turbo"
   return lastSegment
@@ -84,7 +84,10 @@ export function ModelSelector({ sessionId }: { sessionId: string }): React.JSX.E
   const currentModelId = state?.model?.id ?? '…'
   const currentProvider = state?.model?.provider ?? ''
   const currentThinking = state?.thinkingLevel ?? 'off'
-  const thinkingLevels = state?.availableThinkingLevels ?? []
+  const thinkingLevels = useMemo(
+    () => state?.availableThinkingLevels ?? [],
+    [state?.availableThinkingLevels]
+  )
   const supportsReasoning = thinkingLevels.length > 1
   const providers = [...new Set(models.map((model) => model.provider))]
   const pending = setModel.isPending || setThinking.isPending
@@ -101,27 +104,45 @@ export function ModelSelector({ sessionId }: { sessionId: string }): React.JSX.E
     await setThinking.mutateAsync(level)
   }
 
-  const shortcutHints = useMemo(() => {
-    if (!open) return {}
-    const map: Record<string, string> = {}
-    const shortcuts = loadModelShortcuts()
-    for (const [slot, shortcut] of Object.entries(shortcuts)) {
-      if (shortcut) {
-        map[`${shortcut.provider}:${shortcut.modelId}`] = getModelShortcutDisplay(slot)
-      }
-    }
-    return map
-  }, [open])
+  useShortcutAction(
+    'cycle-thinking-level',
+    useCallback(() => {
+      if (!supportsReasoning || setThinking.isPending) return
+      const currentIndex = thinkingLevels.indexOf(currentThinking)
+      const baseIndex = currentIndex === -1 ? -1 : currentIndex
+      const next = thinkingLevels[(baseIndex + 1) % thinkingLevels.length]
+      if (next) void setThinking.mutateAsync(next)
+    }, [currentThinking, setThinking, supportsReasoning, thinkingLevels]),
+    { enabled: supportsReasoning }
+  )
+
+  useShortcutAction(
+    'open-model-picker',
+    useCallback(() => setOpen((previous) => !previous), [])
+  )
+
+  const cycleThinkingShortcut = getShortcutDisplay('cycle-thinking-level')
+  const openPickerShortcut = getShortcutDisplay('open-model-picker')
 
   return (
     <>
       <ModelSelectorRoot open={open} onOpenChange={setOpen}>
-        <ModelSelectorTrigger asChild>
-          <FooterButton className="max-w-[140px] truncate uppercase" disabled={pending}>
-            <span className="truncate">{formatModelDisplayName(currentModelId)}</span>
-            <ChevronDownIcon className="size-3 flex-shrink-0 opacity-50" />
-          </FooterButton>
-        </ModelSelectorTrigger>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <ModelSelectorTrigger asChild>
+              <FooterButton className="max-w-[140px] truncate uppercase" disabled={pending}>
+                <span className="truncate">{formatModelDisplayName(currentModelId)}</span>
+                <ChevronDownIcon className="size-3 flex-shrink-0 opacity-50" />
+              </FooterButton>
+            </ModelSelectorTrigger>
+          </TooltipTrigger>
+          <TooltipContent>
+            Switch model{' '}
+            <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">
+              {openPickerShortcut}
+            </kbd>
+          </TooltipContent>
+        </Tooltip>
         <ModelSelectorContent title="Select model">
           <ModelSelectorInput placeholder="Search models…" />
           <ModelSelectorList>
@@ -145,11 +166,6 @@ export function ModelSelector({ sessionId }: { sessionId: string }): React.JSX.E
                       {model.reasoning ? (
                         <span className="text-[10px] text-muted-foreground">reasoning</span>
                       ) : null}
-                      {shortcutHints[`${model.provider}:${model.id}`] ? (
-                        <ModelSelectorShortcut>
-                          {shortcutHints[`${model.provider}:${model.id}`]}
-                        </ModelSelectorShortcut>
-                      ) : null}
                       {model.id === currentModelId && model.provider === currentProvider ? (
                         <CheckIcon className="ml-auto size-3.5" />
                       ) : (
@@ -165,13 +181,23 @@ export function ModelSelector({ sessionId }: { sessionId: string }): React.JSX.E
 
       {supportsReasoning ? (
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <FooterButton className="capitalize" disabled={pending}>
-              <BrainIcon className="size-3" />
-              {currentThinking}
-              <ChevronDownIcon className="size-3 opacity-50" />
-            </FooterButton>
-          </DropdownMenuTrigger>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <FooterButton className="capitalize" disabled={pending}>
+                  <BrainIcon className="size-3" />
+                  {currentThinking}
+                  <ChevronDownIcon className="size-3 opacity-50" />
+                </FooterButton>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent>
+              Thinking level: {currentThinking}{' '}
+              <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">
+                {cycleThinkingShortcut}
+              </kbd>
+            </TooltipContent>
+          </Tooltip>
           <DropdownMenuContent align="start">
             {thinkingLevels.map((level) => (
               <DropdownMenuItem
