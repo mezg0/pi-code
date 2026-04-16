@@ -39,6 +39,18 @@ let worktreeInfoCache: Record<string, StoredSessionWorktreeInfo> | null = null
 let permissionModesCache: Record<string, PermissionMode> | null = null
 let pinnedSessionIdsCache: Set<string> | null = null
 
+// Memoize listSessions() results. The underlying SDK call scans every project
+// directory and reads the first line of every .jsonl file, which adds up on
+// cold navigation (the session route loader calls getSession() -> listSessions()
+// on every session open). Mutations within this process invalidate explicitly;
+// a short TTL bounds staleness from external writers (e.g. the pi CLI).
+const LIST_SESSIONS_CACHE_TTL_MS = 5_000
+let listSessionsCache: { promise: Promise<Session[]>; expiresAt: number } | null = null
+
+export function invalidateSessionsCache(): void {
+  listSessionsCache = null
+}
+
 function getSessionMetadataPath(): string {
   return join(app.getPath('userData'), SESSION_METADATA_FILE)
 }
@@ -108,6 +120,9 @@ async function writeSessionMetadata(): Promise<void> {
     ),
     'utf8'
   )
+  // Any metadata mutation (archive/pin/worktree/permission) can flip a
+  // field on a session row, so any cached list must be recomputed.
+  invalidateSessionsCache()
 }
 
 async function setArchivedState(id: string, archived: boolean): Promise<void> {
@@ -237,7 +252,7 @@ function toSession(
   return override ? { ...base, ...override } : base
 }
 
-export async function listSessions(): Promise<Session[]> {
+async function computeSessions(): Promise<Session[]> {
   const { SessionManager } = await loadPiSdk()
   const projects = await listProjects()
   const archivedSessionIds = await getArchivedSessionIds()
@@ -268,6 +283,38 @@ export async function listSessions(): Promise<Session[]> {
   return [...uniquePiSessions, ...localOnly].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
 
+export async function listSessions(): Promise<Session[]> {
+  const now = Date.now()
+  if (listSessionsCache && listSessionsCache.expiresAt > now) {
+    return listSessionsCache.promise
+  }
+
+  const promise = computeSessions()
+  listSessionsCache = { promise, expiresAt: now + LIST_SESSIONS_CACHE_TTL_MS }
+
+  // If computation fails, drop the cache entry so the next call retries
+  // instead of serving the rejected promise for the rest of the TTL.
+  promise.catch(() => {
+    if (listSessionsCache?.promise === promise) {
+      listSessionsCache = null
+    }
+  })
+
+  return promise
+}
+
+/**
+ * Prime the listSessions() cache. Call this from app startup so the first
+ * session route navigation does not pay the cold directory-scan cost.
+ */
+export async function warmSessionsCache(): Promise<void> {
+  try {
+    await listSessions()
+  } catch (error) {
+    console.warn('[session-manager] failed to warm sessions cache:', error)
+  }
+}
+
 export async function getSession(id: string): Promise<Session | undefined> {
   return (await listSessions()).find((session) => session.id === id)
 }
@@ -278,6 +325,10 @@ export function getSessionFile(id: string): string | undefined {
 
 export function setSessionFile(id: string, sessionFile: string): void {
   sessionFiles.set(id, sessionFile)
+  // A draft session that just gained a persisted file will show up via the
+  // SDK scan instead of the in-memory override on the next listSessions()
+  // call. Force a fresh scan so we don't serve a stale row.
+  invalidateSessionsCache()
 }
 
 export function getSessionIdForFile(sessionFile: string): string | undefined {
@@ -347,6 +398,7 @@ export async function updateSession(
   const updatedAt = new Date().toISOString()
   const next: Session = { ...current, ...input, updatedAt }
   sessions.set(id, next)
+  invalidateSessionsCache()
   return next
 }
 
