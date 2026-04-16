@@ -43,9 +43,19 @@ import {
 } from '@/components/ai-elements/model-selector'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   buildShortcutLabel,
@@ -76,12 +86,21 @@ import {
   removeAuthCredential,
   setAuthApiKey
 } from '@/lib/auth'
+import {
+  deleteMcpServer,
+  getMcpConfig,
+  reloadMcpResources,
+  saveMcpServer,
+  type SaveMcpServerInput
+} from '@/lib/mcp'
+import type { McpConfigState, McpServerConfig } from '@pi-code/shared/mcp'
 import type { AuthProviderInfo } from '@pi-code/shared/session'
 
 type SettingsSection =
   | 'permissions'
   | 'api-keys'
   | 'model-shortcuts'
+  | 'mcp'
   | 'remote-access'
   | 'archived-chats'
 
@@ -89,6 +108,7 @@ const NAV_ITEMS: { id: SettingsSection; label: string; icon: React.ElementType }
   { id: 'permissions', label: 'Permissions', icon: ShieldQuestionIcon },
   { id: 'api-keys', label: 'API Keys', icon: KeyRoundIcon },
   { id: 'model-shortcuts', label: 'Model Shortcuts', icon: KeyboardIcon },
+  { id: 'mcp', label: 'MCP', icon: GlobeIcon },
   { id: 'remote-access', label: 'Remote Access', icon: WifiIcon },
   { id: 'archived-chats', label: 'Archived Chats', icon: ArchiveIcon }
 ]
@@ -110,6 +130,7 @@ export function SettingsView(): React.JSX.Element {
       {activeSection === 'permissions' && <PermissionsSection />}
       {activeSection === 'api-keys' && <ApiKeysSection />}
       {activeSection === 'model-shortcuts' && <ModelShortcutsSection />}
+      {activeSection === 'mcp' && <McpSection />}
       {activeSection === 'remote-access' && <RemoteAccessSection />}
       {activeSection === 'archived-chats' && <ArchivedChatsSection />}
     </>
@@ -406,6 +427,467 @@ function ApiKeysSection(): React.JSX.Element {
         </section>
       </div>
     </ScrollArea>
+  )
+}
+
+// ─── MCP Section ─────────────────────────────────────────────────────────────
+
+const MCP_LIFECYCLE_OPTIONS: Array<{
+  value: SaveMcpServerInput['lifecycle']
+  label: string
+  description: string
+}> = [
+  {
+    value: 'lazy',
+    label: 'Lazy',
+    description: 'Start the server on first use. Best default for most MCP servers.'
+  },
+  {
+    value: 'eager',
+    label: 'Eager',
+    description: 'Connect on startup, but do not auto-reconnect if it drops.'
+  },
+  {
+    value: 'keep-alive',
+    label: 'Keep-alive',
+    description: 'Keep the server connected and try to reconnect automatically.'
+  }
+]
+
+type McpServerDraft = SaveMcpServerInput & {
+  draftId: string
+  argsText: string
+  envText: string
+  isNew: boolean
+}
+
+function createMcpServerDraft(server: McpServerConfig, isNew = false): McpServerDraft {
+  return {
+    ...server,
+    draftId:
+      globalThis.crypto?.randomUUID?.() ?? `${server.name || 'mcp'}-${Date.now()}-${Math.random()}`,
+    argsText: server.args?.join('\n') ?? '',
+    envText:
+      Object.entries(server.env ?? {})
+        .map(([key, value]) => `${key}=${value}`)
+        .join('\n') ?? '',
+    isNew
+  }
+}
+
+function parseMcpArgs(text: string): string[] {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+}
+
+function parseMcpEnv(text: string): Record<string, string> | undefined {
+  const entries = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const separatorIndex = line.indexOf('=')
+      if (separatorIndex === -1) return null
+      const key = line.slice(0, separatorIndex).trim()
+      const value = line.slice(separatorIndex + 1).trim()
+      if (!key) return null
+      return [key, value] as const
+    })
+    .filter((entry): entry is readonly [string, string] => entry !== null)
+
+  if (entries.length === 0) return undefined
+  return Object.fromEntries(entries)
+}
+
+function McpSection(): React.JSX.Element {
+  const [state, setState] = useState<McpConfigState | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [reloading, setReloading] = useState(false)
+  const [newDrafts, setNewDrafts] = useState<McpServerDraft[]>([])
+
+  const loadConfig = useCallback(async () => {
+    setError(null)
+    try {
+      const next = await getMcpConfig()
+      setState(next)
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load MCP settings.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadConfig()
+  }, [loadConfig])
+
+  function addDraft(transport: SaveMcpServerInput['transport']): void {
+    setNewDrafts((prev) => [
+      ...prev,
+      createMcpServerDraft(
+        {
+          name: '',
+          transport,
+          lifecycle: 'lazy',
+          command: transport === 'stdio' ? 'npx' : undefined,
+          args: transport === 'stdio' ? [] : undefined,
+          url: transport === 'http' ? 'http://localhost:8931/mcp' : undefined,
+          env: undefined
+        },
+        true
+      )
+    ])
+  }
+
+  async function handleSave(draft: McpServerDraft): Promise<void> {
+    setError(null)
+    const payload: SaveMcpServerInput = {
+      name: draft.name.trim(),
+      transport: draft.transport,
+      lifecycle: draft.lifecycle,
+      command: draft.transport === 'stdio' ? (draft.command?.trim() ?? '') : undefined,
+      args: draft.transport === 'stdio' ? parseMcpArgs(draft.argsText) : [],
+      env: draft.transport === 'stdio' ? parseMcpEnv(draft.envText) : undefined,
+      url: draft.transport === 'http' ? (draft.url?.trim() ?? '') : undefined
+    }
+
+    try {
+      const next = await saveMcpServer(payload.name, payload)
+      setState(next)
+      if (draft.isNew) {
+        setNewDrafts((prev) => prev.filter((entry) => entry.draftId !== draft.draftId))
+      }
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save MCP server.')
+    }
+  }
+
+  async function handleDelete(name: string, isNew: boolean, draft?: McpServerDraft): Promise<void> {
+    setError(null)
+    if (isNew && draft) {
+      setNewDrafts((prev) => prev.filter((entry) => entry.draftId !== draft.draftId))
+      return
+    }
+
+    try {
+      const next = await deleteMcpServer(name)
+      setState(next)
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Failed to delete MCP server.')
+    }
+  }
+
+  async function handleReload(): Promise<void> {
+    setReloading(true)
+    setError(null)
+    try {
+      const result = await reloadMcpResources()
+      if (!result.ok) {
+        setError(result.message)
+      } else {
+        await loadConfig()
+      }
+    } catch (reloadError) {
+      setError(
+        reloadError instanceof Error ? reloadError.message : 'Failed to reload MCP resources.'
+      )
+    } finally {
+      setReloading(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  return (
+    <ScrollArea className="h-full">
+      <div className="mx-auto max-w-3xl space-y-6 p-6 md:p-8">
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold">MCP</h2>
+          <p className="text-sm text-muted-foreground">
+            pi-code bundles{' '}
+            <code className="rounded bg-muted px-1 py-0.5 text-[11px]">pi-mcp-adapter</code> and
+            reads MCP server config from{' '}
+            <code className="rounded bg-muted px-1 py-0.5 text-[11px]">
+              {state?.configPath ?? '~/.pi/agent/mcp.json'}
+            </code>
+            .
+          </p>
+        </div>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Bundled adapter</CardTitle>
+            <CardDescription>
+              The MCP adapter loads automatically for every session. Update the config below, then
+              reload MCP resources to apply changes to active chats.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary">
+                {state?.bundledExtension.packageName ?? 'pi-mcp-adapter'}
+              </Badge>
+              <Badge variant="outline">
+                {state?.bundledExtension.version
+                  ? `v${state.bundledExtension.version}`
+                  : 'version unknown'}
+              </Badge>
+              <Badge variant={state?.bundledExtension.error ? 'destructive' : 'secondary'}>
+                {state?.bundledExtension.error ? 'Not loaded' : 'Ready'}
+              </Badge>
+            </div>
+            {state?.bundledExtension.error ? (
+              <p className="text-sm text-destructive">{state.bundledExtension.error}</p>
+            ) : null}
+            {state?.parseError ? (
+              <p className="text-sm text-destructive">
+                The MCP config file could not be parsed: {state.parseError}
+              </p>
+            ) : null}
+            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => addDraft('stdio')}>
+                Add stdio server
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => addDraft('http')}>
+                Add HTTP server
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => void handleReload()}
+                disabled={reloading}
+              >
+                {reloading ? (
+                  <Loader2Icon className="size-3.5 animate-spin" />
+                ) : (
+                  <RefreshCwIcon className="size-3.5" />
+                )}
+                Reload MCP
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {state && state.servers.length === 0 && newDrafts.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center">
+            <p className="text-sm font-medium text-muted-foreground">
+              No MCP servers configured yet
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Add Playwright or another MCP server here, then reload MCP to make it available to the
+              agent.
+            </p>
+          </div>
+        ) : null}
+
+        <div className="space-y-4">
+          {state?.servers.map((server) => (
+            <McpServerEditorCard
+              key={`${server.name}:${server.transport}`}
+              initialDraft={createMcpServerDraft(server)}
+              onDelete={(draft) => handleDelete(draft.name, false)}
+              onSave={handleSave}
+            />
+          ))}
+          {newDrafts.map((draft) => (
+            <McpServerEditorCard
+              key={draft.draftId}
+              initialDraft={draft}
+              onDelete={(nextDraft) => handleDelete(nextDraft.name, true, draft)}
+              onSave={handleSave}
+            />
+          ))}
+        </div>
+      </div>
+    </ScrollArea>
+  )
+}
+
+function McpServerEditorCard({
+  initialDraft,
+  onSave,
+  onDelete
+}: {
+  initialDraft: McpServerDraft
+  onSave: (draft: McpServerDraft) => Promise<void>
+  onDelete: (draft: McpServerDraft) => Promise<void>
+}): React.JSX.Element {
+  const [draft, setDraft] = useState(initialDraft)
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setDraft(initialDraft)
+  }, [initialDraft])
+
+  async function handleSaveClick(): Promise<void> {
+    setSaving(true)
+    setLocalError(null)
+    try {
+      await onSave(draft)
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : 'Failed to save MCP server.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDeleteClick(): Promise<void> {
+    setDeleting(true)
+    setLocalError(null)
+    try {
+      await onDelete(draft)
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : 'Failed to delete MCP server.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-center gap-2">
+          <CardTitle>{draft.isNew ? 'New MCP server' : draft.name}</CardTitle>
+          <Badge variant="outline">{draft.transport === 'http' ? 'HTTP' : 'stdio'}</Badge>
+        </div>
+        <CardDescription>
+          {draft.transport === 'http'
+            ? 'Use this for MCP servers exposed over HTTP or SSE-compatible endpoints.'
+            : 'Use this for local MCP servers launched by command, like Playwright MCP.'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px]">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Server name</label>
+            <Input
+              value={draft.name}
+              disabled={!draft.isNew}
+              onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))}
+              placeholder="playwright"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Lifecycle</label>
+            <Select
+              value={draft.lifecycle}
+              onValueChange={(value) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  lifecycle: value as SaveMcpServerInput['lifecycle']
+                }))
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select lifecycle" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {MCP_LIFECYCLE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              {
+                MCP_LIFECYCLE_OPTIONS.find((option) => option.value === draft.lifecycle)
+                  ?.description
+              }
+            </p>
+          </div>
+        </div>
+
+        {draft.transport === 'stdio' ? (
+          <>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Command</label>
+              <Input
+                value={draft.command ?? ''}
+                onChange={(event) => setDraft((prev) => ({ ...prev, command: event.target.value }))}
+                placeholder="npx"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Arguments</label>
+              <Textarea
+                rows={4}
+                value={draft.argsText}
+                onChange={(event) =>
+                  setDraft((prev) => ({ ...prev, argsText: event.target.value }))
+                }
+                placeholder="-y&#10;@playwright/mcp@latest"
+              />
+              <p className="text-[11px] text-muted-foreground">One argument per line.</p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Environment</label>
+              <Textarea
+                rows={3}
+                value={draft.envText}
+                onChange={(event) => setDraft((prev) => ({ ...prev, envText: event.target.value }))}
+                placeholder="PLAYWRIGHT_MCP_EXTENSION_TOKEN=..."
+              />
+              <p className="text-[11px] text-muted-foreground">Optional. Use KEY=value per line.</p>
+            </div>
+          </>
+        ) : (
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">URL</label>
+            <Input
+              value={draft.url ?? ''}
+              onChange={(event) => setDraft((prev) => ({ ...prev, url: event.target.value }))}
+              placeholder="http://localhost:8931/mcp"
+            />
+          </div>
+        )}
+
+        {localError ? <p className="text-sm text-destructive">{localError}</p> : null}
+
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void handleDeleteClick()}
+            disabled={saving || deleting}
+          >
+            {deleting ? (
+              <Loader2Icon className="size-3.5 animate-spin" />
+            ) : (
+              <Trash2Icon className="size-3.5" />
+            )}
+            {draft.isNew ? 'Cancel' : 'Delete'}
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => void handleSaveClick()}
+            disabled={saving || deleting}
+          >
+            {saving ? (
+              <Loader2Icon className="size-3.5 animate-spin" />
+            ) : (
+              <CheckCircle2Icon className="size-3.5" />
+            )}
+            Save server
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 

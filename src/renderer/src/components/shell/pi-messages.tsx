@@ -100,10 +100,8 @@ function hasUnquotedShellControlOperator(command: string): boolean {
 function getReadOnlyBashContextCommand(args: unknown): string | null {
   if (!args || typeof args !== 'object') return null
 
-  const command =
-    typeof (args as Record<string, unknown>).command === 'string'
-      ? (args as Record<string, unknown>).command.trim()
-      : ''
+  const commandValue = (args as Record<string, unknown>).command
+  const command = typeof commandValue === 'string' ? commandValue.trim() : ''
   if (!command) return null
 
   // Only group simple, single read-only commands. Anything with shell control
