@@ -279,11 +279,15 @@ export function SessionConversation(props: {
 
       {/* Footer stack — observed for height changes to compensate scroll position */}
       <div ref={footerRef} className="shrink-0">
-        {/* Loading indicator — visible while the agent is working */}
+        {/* Loading indicator — visible while the agent is working.
+            Appears instantly on send for immediate feedback; fades out
+            smoothly when the turn ends. */}
         <div
           className={cn(
-            'shrink-0 px-3 transition-opacity duration-300 sm:px-5',
-            props.isLoading || props.isStreaming ? 'opacity-100' : 'pointer-events-none opacity-0'
+            'shrink-0 px-3 sm:px-5',
+            props.isLoading || props.isStreaming
+              ? 'opacity-100'
+              : 'pointer-events-none opacity-0 transition-opacity duration-300'
           )}
         >
           <div className="mx-auto w-full max-w-3xl">

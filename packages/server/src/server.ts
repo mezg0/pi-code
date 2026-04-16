@@ -75,14 +75,10 @@ export function createApp(options?: { webRoot?: string; devProxy?: string }): Ho
         void stream.writeSSE({ data: JSON.stringify(event) })
       })
 
+      // Heartbeat as a pure SSE comment — keeps the connection alive
+      // through proxies without waking up any client subscribers.
       const heartbeat = setInterval(() => {
-        void stream.writeSSE({
-          data: JSON.stringify({
-            channel: 'server:heartbeat',
-            payload: {},
-            timestamp: new Date().toISOString()
-          })
-        })
+        void stream.write(': hb\n\n')
       }, 10000)
 
       await new Promise<void>((resolve) => {

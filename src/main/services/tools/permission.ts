@@ -1,4 +1,3 @@
-import { BrowserWindow } from 'electron'
 import { publishServerEvent } from '@pi-code/server/event-bus'
 import type { PermissionMode, PermissionRequest, PermissionResponse } from '@pi-code/shared/session'
 
@@ -19,14 +18,6 @@ const alwaysApproved = new Map<string, Set<string>>()
 
 function generateRequestId(): string {
   return `perm_${Date.now()}_${nextId++}`
-}
-
-function emitToRenderers(channel: string, payload: unknown): void {
-  publishServerEvent(channel, payload)
-
-  for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send(channel, payload)
-  }
 }
 
 // ── Pattern derivation ──────────────────────────────────────────────
@@ -239,7 +230,7 @@ export function askPermission(
 
   return new Promise<void>((resolve, reject) => {
     pending.set(requestId, { sessionId, request, resolve, reject })
-    emitToRenderers('sessions:permission', { sessionId, request })
+    publishServerEvent('sessions:permission', { sessionId, request })
   })
 }
 
@@ -256,7 +247,7 @@ export function replyToPermission(
   pending.delete(requestId)
 
   // Emit null to clear the permission UI
-  emitToRenderers('sessions:permission', {
+  publishServerEvent('sessions:permission', {
     sessionId: entry.sessionId,
     request: null
   })
@@ -280,7 +271,7 @@ export function replyToPermission(
           )
         ) {
           pending.delete(id)
-          emitToRenderers('sessions:permission', {
+          publishServerEvent('sessions:permission', {
             sessionId: other.sessionId,
             request: null
           })
@@ -321,7 +312,7 @@ export function rejectAllPermissionsForSession(sessionId: string): void {
   for (const [requestId, entry] of pending) {
     if (entry.sessionId === sessionId) {
       pending.delete(requestId)
-      emitToRenderers('sessions:permission', { sessionId, request: null })
+      publishServerEvent('sessions:permission', { sessionId, request: null })
       entry.reject(new Error('Session was aborted'))
     }
   }
@@ -335,7 +326,7 @@ export function approveAllPermissionsForSession(sessionId: string): void {
   for (const [requestId, entry] of pending) {
     if (entry.sessionId === sessionId) {
       pending.delete(requestId)
-      emitToRenderers('sessions:permission', { sessionId, request: null })
+      publishServerEvent('sessions:permission', { sessionId, request: null })
       entry.resolve()
     }
   }

@@ -1,5 +1,4 @@
 import { watch, type FSWatcher } from 'fs'
-import { BrowserWindow } from 'electron'
 import { publishServerEvent } from '@pi-code/server/event-bus'
 import { sep } from 'path'
 
@@ -36,20 +35,13 @@ function isIgnored(filePath: string): boolean {
   return parts.some((part) => IGNORED_DIRS.has(part) || part.startsWith('.'))
 }
 
-function broadcast(channel: string, payload: unknown): void {
-  publishServerEvent(channel, payload)
-  for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send(channel, payload)
-  }
-}
-
 function flush(cwd: string, entry: WatcherEntry): void {
   entry.debounceTimer = null
   const changedPaths = Array.from(entry.pendingPaths)
   entry.pendingPaths.clear()
 
   if (changedPaths.length > 0) {
-    broadcast('files:changed', { cwd, paths: changedPaths })
+    publishServerEvent('files:changed', { cwd, paths: changedPaths })
   }
 }
 

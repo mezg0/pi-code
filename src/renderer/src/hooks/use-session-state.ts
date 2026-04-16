@@ -15,7 +15,6 @@ import {
   type SessionStatus,
   type SessionStreamingEvent
 } from '@/lib/sessions'
-import { cloneStreamingSnapshot } from '@pi-code/shared/streaming-contract'
 
 const BUSY_STATUSES: Set<SessionStatus> = new Set(['queued', 'starting', 'running'])
 
@@ -165,7 +164,9 @@ export function useSessionState(
           }
           setIsLoading(false)
           setIsStreaming(true)
-          pendingStreamingMessage = cloneStreamingSnapshot(event.message)
+          // The SSE layer already delivered us a fresh object via JSON.parse —
+          // no further cloning needed.
+          pendingStreamingMessage = event.message
           scheduleStreamingMessageFlush()
           break
         case 'message_end':

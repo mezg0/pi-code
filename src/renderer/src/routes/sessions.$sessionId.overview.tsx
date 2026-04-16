@@ -2,6 +2,7 @@ import { createFileRoute, notFound, redirect } from '@tanstack/react-router'
 
 import { SessionConversation } from '@/components/shell/session-conversation'
 import { useSessionState } from '@/hooks/use-session-state'
+import { sessionKeys } from '@/lib/query-keys'
 import {
   abortSession,
   getAgentMessages,
@@ -79,8 +80,14 @@ function SessionOverviewContent({
 }
 
 export const Route = createFileRoute('/sessions/$sessionId/overview')({
-  loader: async ({ params }) => {
-    const session = await getSession(params.sessionId)
+  loader: async ({ params, context }) => {
+    // Kick off both fetches concurrently so the user waits for max(a,b)
+    // instead of a + b. Messages load is wasted on missing/archived
+    // sessions, which is rare and cheap.
+    const sessionPromise = getSession(params.sessionId)
+    const messagesPromise = getAgentMessages(params.sessionId).catch(() => [] as AgentMessage[])
+
+    const session = await sessionPromise
     if (!session) {
       throw notFound()
     }
@@ -88,7 +95,10 @@ export const Route = createFileRoute('/sessions/$sessionId/overview')({
       throw redirect({ to: '/' })
     }
 
-    const messages = await getAgentMessages(params.sessionId)
+    const messages = await messagesPromise
+    // Seed the React Query cache so peers (e.g. AppShell plan detection)
+    // read the same data without a duplicate round-trip.
+    context.queryClient.setQueryData(sessionKeys.messages(params.sessionId), messages)
     return { session, messages }
   },
   component: SessionOverviewRouteComponent

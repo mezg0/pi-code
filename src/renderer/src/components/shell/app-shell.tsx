@@ -31,11 +31,17 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/componen
 import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useHotkey } from '@tanstack/react-hotkeys'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { extractLatestPlan, getPlanMessageKey } from '@/lib/plan'
 import { getGitStatus, isGitRepo } from '@/lib/git'
-import { gitKeys } from '@/lib/query-keys'
-import { getAgentMessages, onAgentMessages, type Project, type Session } from '@/lib/sessions'
+import { gitKeys, sessionKeys } from '@/lib/query-keys'
+import {
+  getAgentMessages,
+  onAgentMessages,
+  type AgentMessage,
+  type Project,
+  type Session
+} from '@/lib/sessions'
 import { getShortcutDisplay, SHORTCUTS } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 import {
@@ -233,6 +239,8 @@ function AppShellContent({
   const cwd = activeSession?.worktreePath ?? activeSession?.repoPath
   const toolPanelSize = loadToolPanelSize()
 
+  const queryClient = useQueryClient()
+
   const gitRepoQuery = useQuery({
     queryKey: cwd ? gitKeys.isRepo(cwd) : ['git', 'isRepo', 'none'],
     queryFn: () => isGitRepo(cwd!),
@@ -318,41 +326,60 @@ function AppShellContent({
       return
     }
 
+    const sessionId = activeSession.id
     let disposed = false
     let lastPlanKey: string | null | undefined = undefined
 
     setDismissedPlanKey(null)
 
-    void getAgentMessages(activeSession.id)
-      .then((messages) => {
-        if (disposed) return
-        lastPlanKey = getPlanMessageKey(extractLatestPlan(messages))
-        setHasPlan(Boolean(lastPlanKey))
-        setCurrentPlanKey(lastPlanKey)
-        if (!lastPlanKey && activeToolTabRef.current === 'plan') {
-          if (toolPanelOpenRef.current) {
-            setActiveToolTab('git')
-          } else {
-            rememberActiveToolTab('git')
-          }
+    const applyMessages = (messages: AgentMessage[]): void => {
+      if (disposed) return
+      lastPlanKey = getPlanMessageKey(extractLatestPlan(messages))
+      setHasPlan(Boolean(lastPlanKey))
+      setCurrentPlanKey(lastPlanKey)
+      if (!lastPlanKey && activeToolTabRef.current === 'plan') {
+        if (toolPanelOpenRef.current) {
+          setActiveToolTab('git')
+        } else {
+          rememberActiveToolTab('git')
         }
-      })
-      .catch(() => {
-        if (disposed) return
-        lastPlanKey = null
-        setHasPlan(false)
-        setCurrentPlanKey(null)
-        if (activeToolTabRef.current === 'plan') {
-          if (toolPanelOpenRef.current) {
-            setActiveToolTab('git')
-          } else {
-            rememberActiveToolTab('git')
+      }
+    }
+
+    // Read from the React Query cache first (populated by the session
+    // route loader) so switching sessions doesn't trigger a second
+    // network round-trip for messages we already have.
+    const cached = queryClient.getQueryData<AgentMessage[]>(sessionKeys.messages(sessionId))
+    if (cached) {
+      applyMessages(cached)
+    } else {
+      void queryClient
+        .fetchQuery({
+          queryKey: sessionKeys.messages(sessionId),
+          queryFn: () => getAgentMessages(sessionId)
+        })
+        .then(applyMessages)
+        .catch(() => {
+          if (disposed) return
+          lastPlanKey = null
+          setHasPlan(false)
+          setCurrentPlanKey(null)
+          if (activeToolTabRef.current === 'plan') {
+            if (toolPanelOpenRef.current) {
+              setActiveToolTab('git')
+            } else {
+              rememberActiveToolTab('git')
+            }
           }
-        }
-      })
+        })
+    }
 
     const unsubscribe = onAgentMessages((payload) => {
-      if (payload.sessionId !== activeSession.id) return
+      if (payload.sessionId !== sessionId) return
+
+      // Keep the shared cache in sync so any consumer (route loader,
+      // plan view, this effect) sees the latest authoritative message list.
+      queryClient.setQueryData(sessionKeys.messages(sessionId), payload.messages)
 
       const nextPlanKey = getPlanMessageKey(extractLatestPlan(payload.messages))
       setHasPlan(Boolean(nextPlanKey))
@@ -375,7 +402,7 @@ function AppShellContent({
       disposed = true
       unsubscribe()
     }
-  }, [activeSession?.id, rememberActiveToolTab, setActiveToolTab])
+  }, [activeSession?.id, queryClient, rememberActiveToolTab, setActiveToolTab])
 
   function handleCommitOpenChange(open: boolean): void {
     setCommitOpen(open)

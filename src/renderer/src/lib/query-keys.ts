@@ -17,5 +17,6 @@ export const sessionKeys = {
   availableModels: (sessionId: string) => ['session', 'availableModels', sessionId] as const,
   planMode: (sessionId: string) => ['session', 'planMode', sessionId] as const,
   permissionMode: (sessionId: string) => ['session', 'permissionMode', sessionId] as const,
+  messages: (sessionId: string) => ['session', 'messages', sessionId] as const,
   list: () => ['session', 'list'] as const
 }

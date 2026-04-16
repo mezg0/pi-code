@@ -1,6 +1,5 @@
 import { existsSync } from 'fs'
 import { join } from 'path'
-import { BrowserWindow } from 'electron'
 import type {
   AgentSession,
   AgentSessionEvent,
@@ -57,24 +56,19 @@ const abortingSessions = new Set<string>()
 
 type ThinkingLevel = Parameters<AgentSession['setThinkingLevel']>[0]
 
-function emitToRenderers(channel: string, payload: unknown): void {
-  publishServerEvent(channel, payload)
-
-  for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send(channel, payload)
-  }
-}
-
+// SSE is the only consumer. The renderer subscribes via EventSource;
+// it never listens on Electron IPC for session events. So we publish
+// once and let the SSE route's JSON.stringify handle the wire copy.
 function emitSessionUpdate(session: { id: string; [key: string]: unknown }): void {
-  emitToRenderers('sessions:updated', session)
+  publishServerEvent('sessions:updated', session)
 }
 
 function emitMessages(sessionId: string, messages: AgentMessage[]): void {
-  emitToRenderers('sessions:messages', { sessionId, messages })
+  publishServerEvent('sessions:messages', { sessionId, messages })
 }
 
 function emitPlanMode(sessionId: string, enabled: boolean): void {
-  emitToRenderers('sessions:planMode', { sessionId, enabled })
+  publishServerEvent('sessions:planMode', { sessionId, enabled })
 }
 
 // Coalesce streaming updates so the renderer receives at most one in-flight
@@ -88,15 +82,24 @@ let streamingFlushScheduled = false
 function flushStreamingEvents(): void {
   streamingFlushScheduled = false
   for (const [, payload] of pendingStreamingEvents) {
-    emitToRenderers('sessions:streaming', cloneStreamingSnapshot(payload))
+    // Payload was already deep-snapshotted at coalesce time, so the
+    // SSE route can JSON.stringify it directly without a second clone.
+    publishServerEvent('sessions:streaming', payload)
   }
   pendingStreamingEvents.clear()
 }
 
 function emitStreamingEvent(sessionId: string, event: SessionStreamingEvent): void {
   if (event.type === 'message_update') {
-    // Coalesce: only keep the latest message_update per session
-    pendingStreamingEvents.set(sessionId, { sessionId, event })
+    // Coalesce: only keep the latest message_update per session.
+    //
+    // We MUST snapshot the event here. The SDK emits `{ ...partialMessage }`
+    // whose nested `content` array is the same reference the agent loop
+    // keeps mutating on subsequent tokens. Because our flush is deferred
+    // via setImmediate, the `content` could grow between now and the
+    // flush — and JSON.stringify would then serialize a later state than
+    // the one we intended to coalesce. A deep snapshot freezes the payload.
+    pendingStreamingEvents.set(sessionId, cloneStreamingSnapshot({ sessionId, event }))
     if (!streamingFlushScheduled) {
       streamingFlushScheduled = true
       // Use setImmediate to flush at the end of the current event loop tick,
@@ -106,12 +109,12 @@ function emitStreamingEvent(sessionId: string, event: SessionStreamingEvent): vo
   } else {
     // Non-update events (message_end, agent_end) are sent immediately and
     // flush any pending update first so ordering remains stable.
-    if (pendingStreamingEvents.has(sessionId)) {
-      const pending = pendingStreamingEvents.get(sessionId)!
+    const pending = pendingStreamingEvents.get(sessionId)
+    if (pending) {
       pendingStreamingEvents.delete(sessionId)
-      emitToRenderers('sessions:streaming', cloneStreamingSnapshot(pending))
+      publishServerEvent('sessions:streaming', pending)
     }
-    emitToRenderers('sessions:streaming', { sessionId, event })
+    publishServerEvent('sessions:streaming', { sessionId, event })
   }
 }
 
@@ -445,7 +448,7 @@ export async function setPermissionMode(sessionId: string, mode: PermissionMode)
       approveAllPermissionsForSession(sessionId)
     }
 
-    emitToRenderers('sessions:permissionMode', { sessionId, mode })
+    publishServerEvent('sessions:permissionMode', { sessionId, mode })
     return true
   } catch (error) {
     console.error(`[pi-runner] setPermissionMode failed for ${sessionId}:`, error)

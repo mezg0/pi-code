@@ -1,4 +1,3 @@
-import { BrowserWindow } from 'electron'
 import type { ToolDefinition } from '@mariozechner/pi-coding-agent'
 import { publishServerEvent } from '@pi-code/server/event-bus'
 import { Type } from '@sinclair/typebox'
@@ -53,14 +52,6 @@ function generateRequestId(): string {
   return `q_${Date.now()}_${nextId++}`
 }
 
-function emitToRenderers(channel: string, payload: unknown): void {
-  publishServerEvent(channel, payload)
-
-  for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send(channel, payload)
-  }
-}
-
 // ── Public API for IPC handlers ─────────────────────────────────────
 
 export function replyToQuestion(requestId: string, answers: QuestionAnswer[]): boolean {
@@ -69,7 +60,7 @@ export function replyToQuestion(requestId: string, answers: QuestionAnswer[]): b
   pending.delete(requestId)
 
   // Emit null to clear the question UI
-  emitToRenderers('sessions:question', { sessionId: entry.sessionId, request: null })
+  publishServerEvent('sessions:question', { sessionId: entry.sessionId, request: null })
 
   entry.resolve(answers)
   return true
@@ -81,7 +72,7 @@ export function rejectQuestion(requestId: string): boolean {
   pending.delete(requestId)
 
   // Emit null to clear the question UI
-  emitToRenderers('sessions:question', { sessionId: entry.sessionId, request: null })
+  publishServerEvent('sessions:question', { sessionId: entry.sessionId, request: null })
 
   entry.reject(new Error('The user dismissed this question'))
   return true
@@ -108,7 +99,7 @@ export function rejectAllQuestionsForSession(sessionId: string): void {
   for (const [requestId, entry] of pending) {
     if (entry.sessionId === sessionId) {
       pending.delete(requestId)
-      emitToRenderers('sessions:question', { sessionId, request: null })
+      publishServerEvent('sessions:question', { sessionId, request: null })
       entry.reject(new Error('Session was aborted'))
     }
   }
@@ -159,7 +150,7 @@ export const askUserQuestionTool: ToolDefinition<typeof QUESTION_PARAMS, Questio
       pending.set(requestId, { sessionId, request, resolve, reject })
 
       // Emit to renderer to show question UI
-      emitToRenderers('sessions:question', { sessionId, request })
+      publishServerEvent('sessions:question', { sessionId, request })
 
       // If the tool call is aborted, reject the pending question
       if (signal) {
@@ -168,7 +159,7 @@ export const askUserQuestionTool: ToolDefinition<typeof QUESTION_PARAMS, Questio
           () => {
             if (pending.has(requestId)) {
               pending.delete(requestId)
-              emitToRenderers('sessions:question', { sessionId, request: null })
+              publishServerEvent('sessions:question', { sessionId, request: null })
               reject(new Error('Question was aborted'))
             }
           },
