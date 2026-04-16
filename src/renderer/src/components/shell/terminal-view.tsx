@@ -81,10 +81,10 @@ export function TerminalView({ id, cwd }: { id: string; cwd: string }): React.JS
   }, [cwd, id])
 
   return (
-    <div className="size-full min-w-0 overflow-hidden bg-black px-3 py-2">
+    <div className="size-full min-w-0 overflow-hidden bg-background px-3 py-2">
       <div
         ref={containerRef}
-        className="terminal-host size-full min-w-0 overflow-hidden bg-black"
+        className="terminal-host size-full min-w-0 overflow-hidden bg-background"
         onClick={() => termRef.current?.focus()}
       />
     </div>
