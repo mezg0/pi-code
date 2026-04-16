@@ -51,38 +51,39 @@ html {
   --sidebar-ring: oklch(0.7 0.02 225);
 }
 
+/* Ayu Mirage/Dark palette — matches the ayu theme in t3code */
 .dark {
-  --background: oklch(0.17 0.01 230);
-  --foreground: oklch(0.96 0.004 220);
-  --card: oklch(0.21 0.012 230);
-  --card-foreground: oklch(0.96 0.004 220);
-  --popover: oklch(0.21 0.012 230);
-  --popover-foreground: oklch(0.96 0.004 220);
-  --primary: oklch(0.67 0.12 221);
-  --primary-foreground: oklch(0.21 0.02 232);
-  --secondary: oklch(0.27 0.01 232);
-  --secondary-foreground: oklch(0.96 0.004 220);
-  --muted: oklch(0.25 0.012 230);
-  --muted-foreground: oklch(0.7 0.015 224);
-  --accent: oklch(0.3 0.015 231);
-  --accent-foreground: oklch(0.96 0.004 220);
-  --destructive: oklch(0.68 0.19 23);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.56 0.02 224);
-  --chart-1: oklch(0.76 0.12 228);
-  --chart-2: oklch(0.66 0.14 233);
-  --chart-3: oklch(0.57 0.13 238);
-  --chart-4: oklch(0.49 0.12 241);
-  --chart-5: oklch(0.42 0.11 242);
-  --sidebar: oklch(0.2 0.012 230);
-  --sidebar-foreground: oklch(0.96 0.004 220);
-  --sidebar-primary: oklch(0.71 0.13 217);
-  --sidebar-primary-foreground: oklch(0.25 0.03 232);
-  --sidebar-accent: oklch(0.28 0.013 230);
-  --sidebar-accent-foreground: oklch(0.96 0.004 220);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.56 0.02 224);
+  --background: #0d1017;
+  --foreground: #dcd7cb;
+  --card: #11151c;
+  --card-foreground: #dcd7cb;
+  --popover: #131820;
+  --popover-foreground: #dcd7cb;
+  --primary: #e6b450;
+  --primary-foreground: #0b0e14;
+  --secondary: #151a22;
+  --secondary-foreground: #dcd7cb;
+  --muted: #11151c;
+  --muted-foreground: #a6a299;
+  --accent: #1a1f29;
+  --accent-foreground: #e6b450;
+  --destructive: #f07178;
+  --border: #1a1f29;
+  --input: #1a1f29;
+  --ring: #e6b450;
+  --chart-1: #e6b450;
+  --chart-2: #59c2ff;
+  --chart-3: #aad94c;
+  --chart-4: #d2a6ff;
+  --chart-5: #f07178;
+  --sidebar: #0b0e14;
+  --sidebar-foreground: #dcd7cb;
+  --sidebar-primary: #e6b450;
+  --sidebar-primary-foreground: #0b0e14;
+  --sidebar-accent: #131820;
+  --sidebar-accent-foreground: #e6b450;
+  --sidebar-border: #161b24;
+  --sidebar-ring: #e6b450;
 }
 
 @theme inline {
@@ -213,7 +214,7 @@ html {
   .terminal-host .xterm-viewport,
   .terminal-host .xterm-screen,
   .terminal-host .xterm-scroll-area {
-    background: #000;
+    background: #0d1017;
   }
 }
 

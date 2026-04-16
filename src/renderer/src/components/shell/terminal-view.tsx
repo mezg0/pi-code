@@ -21,11 +21,12 @@ export function TerminalView({ id, cwd }: { id: string; cwd: string }): React.JS
     const term = new Terminal({
       fontSize: 13,
       fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+      // Ayu palette — keeps terminal chrome consistent with the app surface
       theme: {
-        background: '#09090b',
-        foreground: '#fafafa',
-        cursor: '#fafafa',
-        selectionBackground: '#27272a'
+        background: '#0d1017',
+        foreground: '#dcd7cb',
+        cursor: '#e6b450',
+        selectionBackground: '#1a1f29'
       },
       cursorBlink: true,
       allowProposedApi: true
