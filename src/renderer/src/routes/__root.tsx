@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Outlet,
-  createRootRoute,
+  createRootRouteWithContext,
   useMatchRoute,
   useNavigate,
   useRouter
 } from '@tanstack/react-router'
+import type { QueryClient } from '@tanstack/react-query'
 import { useHotkey } from '@tanstack/react-hotkeys'
 
 import { useWorkspaceState } from '@/hooks/use-workspace-state'
@@ -396,7 +397,7 @@ function RootComponent(): React.JSX.Element {
   )
 }
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   loader: loadWorkspace,
   component: RootComponent
 })

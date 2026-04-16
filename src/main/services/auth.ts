@@ -1,4 +1,4 @@
-import { shell, BrowserWindow } from 'electron'
+import { shell } from 'electron'
 import { publishServerEvent } from '@pi-code/server/event-bus'
 import { loadPiSdk } from './pi-sdk'
 
@@ -130,14 +130,10 @@ export async function oauthLogin(providerId: string): Promise<boolean> {
         void shell.openExternal(info.url)
 
         // Notify renderer about auth status
-        const progressPayload = {
+        publishServerEvent('auth:progress', {
           providerId,
           message: info.instructions ?? 'Complete sign-in in your browser...'
-        }
-        publishServerEvent('auth:progress', progressPayload)
-        for (const window of BrowserWindow.getAllWindows()) {
-          window.webContents.send('auth:progress', progressPayload)
-        }
+        })
       },
       onPrompt: async (prompt) => {
         // For flows that require manual code input, we'd need a dialog.
@@ -147,9 +143,6 @@ export async function oauthLogin(providerId: string): Promise<boolean> {
       },
       onProgress: (message) => {
         publishServerEvent('auth:progress', { providerId, message })
-        for (const window of BrowserWindow.getAllWindows()) {
-          window.webContents.send('auth:progress', { providerId, message })
-        }
       }
     })
 
