@@ -183,19 +183,36 @@ function buildRenderRows(
         currentKind = kind
         continue
       }
-    }
 
-    flushRun()
-
-    if (isTextBlock(block) && block.text.trim()) {
-      rows.push({ type: 'text', key: `text-${i}`, text: block.text })
-    } else if (isThinkingBlock(block) && block.thinking.trim()) {
-      rows.push({ type: 'thinking', key: `thinking-${i}`, text: block.thinking })
-    } else if (isToolCallBlock(block)) {
+      // Non-groupable tool call: flush and emit as its own row
+      flushRun()
       const result = toolResultsById.get(block.id)
       const pending = pendingToolCalls.has(block.id) && !result
       rows.push({ type: 'tool', key: `tool-${block.id}`, toolCall: block, pending })
+      continue
     }
+
+    if (isTextBlock(block)) {
+      // Only flush and emit when the text block will actually render.
+      // Empty / whitespace-only text blocks are common between tool calls
+      // in streamed assistant content and must NOT break a group run.
+      if (block.text.trim()) {
+        flushRun()
+        rows.push({ type: 'text', key: `text-${i}`, text: block.text })
+      }
+      continue
+    }
+
+    if (isThinkingBlock(block)) {
+      if (block.thinking.trim()) {
+        flushRun()
+        rows.push({ type: 'thinking', key: `thinking-${i}`, text: block.thinking })
+      }
+      continue
+    }
+
+    // Unknown / non-rendering block (e.g. image handled elsewhere): leave
+    // the current run intact so surrounding tool calls still group.
   }
 
   flushRun()
