@@ -53,6 +53,50 @@ type RenderRow =
   | { type: 'tool'; key: string; toolCall: ToolCallBlock; pending: boolean }
   | { type: 'toolGroup'; key: string; group: ToolGroupKind; tools: ToolEntry[] }
 
+/**
+ * Return true if the bash command contains a shell control operator
+ * (`;`, `&`, `|`, `<`, `>`, newline) outside of quoted or escaped regions.
+ *
+ * We scan manually so regex metacharacters inside quoted arguments — very
+ * common in grep/find patterns like `grep "event\|sse"` — don't falsely
+ * disqualify an otherwise simple read-only command.
+ */
+function hasUnquotedShellControlOperator(command: string): boolean {
+  let inSingle = false
+  let inDouble = false
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i]
+    if (inSingle) {
+      if (ch === "'") inSingle = false
+      continue
+    }
+    if (inDouble) {
+      if (ch === '\\' && i + 1 < command.length) {
+        i++
+        continue
+      }
+      if (ch === '"') inDouble = false
+      continue
+    }
+    if (ch === '\\' && i + 1 < command.length) {
+      i++
+      continue
+    }
+    if (ch === "'") {
+      inSingle = true
+      continue
+    }
+    if (ch === '"') {
+      inDouble = true
+      continue
+    }
+    if (ch === ';' || ch === '&' || ch === '|' || ch === '<' || ch === '>' || ch === '\n') {
+      return true
+    }
+  }
+  return false
+}
+
 function getReadOnlyBashContextCommand(args: unknown): string | null {
   if (!args || typeof args !== 'object') return null
 
@@ -63,8 +107,8 @@ function getReadOnlyBashContextCommand(args: unknown): string | null {
   if (!command) return null
 
   // Only group simple, single read-only commands. Anything with shell control
-  // operators or redirection stays as an individual Shell row.
-  if (/[;&|<>\n]/.test(command)) return null
+  // operators or redirection (outside of quotes) stays as an individual Shell row.
+  if (hasUnquotedShellControlOperator(command)) return null
 
   const match = command.match(/^([A-Za-z0-9._-]+)/)
   const baseCommand = match?.[1]
