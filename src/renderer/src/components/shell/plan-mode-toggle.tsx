@@ -1,11 +1,12 @@
+import { useCallback } from 'react'
 import { ListChecksIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useHotkey } from '@tanstack/react-hotkeys'
 import { useSessionPlanMode, useSessionRuntimeMutations } from '@/lib/session-runtime-query'
-import { getShortcutDisplay, SHORTCUTS } from '@/lib/shortcuts'
+import { useShortcutAction } from '@/lib/shortcut-actions'
+import { getShortcutDisplay } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 
 export function PlanModeToggle({ sessionId }: { sessionId: string }): React.JSX.Element {
@@ -16,12 +17,15 @@ export function PlanModeToggle({ sessionId }: { sessionId: string }): React.JSX.
   const loading = planModeQuery.isPending
   const pending = setPlanMode.isPending
 
-  async function handleToggle(): Promise<void> {
+  const handleToggle = useCallback(async (): Promise<void> => {
     if (loading || pending) return
     await setPlanMode.mutateAsync(!enabled)
-  }
+  }, [enabled, loading, pending, setPlanMode])
 
-  useHotkey(SHORTCUTS['toggle-plan-mode'].keys, () => void handleToggle())
+  useShortcutAction(
+    'toggle-plan-mode',
+    useCallback(() => void handleToggle(), [handleToggle])
+  )
 
   const shortcutHint = getShortcutDisplay('toggle-plan-mode')
   const label = enabled ? 'Plan mode on — read‑only' : 'Plan mode off'

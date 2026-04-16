@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import {
   CheckIcon,
   ShieldAlertIcon,
@@ -16,6 +17,8 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSessionPermissionMode, useSessionRuntimeMutations } from '@/lib/session-runtime-query'
+import { useShortcutAction } from '@/lib/shortcut-actions'
+import { getShortcutDisplay } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 import type { PermissionMode } from '@/lib/sessions'
 
@@ -65,8 +68,19 @@ export function PermissionModeToggle({ sessionId }: { sessionId: string }): Reac
     await setPermissionMode.mutateAsync(newMode)
   }
 
+  useShortcutAction(
+    'cycle-permission-mode',
+    useCallback(() => {
+      if (loading || pending) return
+      const currentIndex = MODES.indexOf(mode)
+      const nextMode = MODES[(currentIndex + 1) % MODES.length]
+      void setPermissionMode.mutateAsync(nextMode)
+    }, [loading, mode, pending, setPermissionMode])
+  )
+
   const config = MODE_CONFIG[mode]
   const Icon = config.icon
+  const cycleShortcut = getShortcutDisplay('cycle-permission-mode')
 
   return (
     <DropdownMenu>
@@ -90,7 +104,8 @@ export function PermissionModeToggle({ sessionId }: { sessionId: string }): Reac
           </DropdownMenuTrigger>
         </TooltipTrigger>
         <TooltipContent>
-          Permission mode: {config.label.toLowerCase()}
+          Permission mode: {config.label.toLowerCase()}{' '}
+          <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">{cycleShortcut}</kbd>
           <br />
           <span className="text-[10px] opacity-60">{config.description}</span>
         </TooltipContent>

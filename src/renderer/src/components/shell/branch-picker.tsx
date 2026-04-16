@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { GitBranchIcon, ChevronsUpDownIcon, PlusIcon, LoaderIcon } from 'lucide-react'
 
@@ -17,6 +17,8 @@ import { invalidateGitCwd } from '@/lib/git-query'
 import { gitKeys } from '@/lib/query-keys'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useShortcutAction } from '@/lib/shortcut-actions'
+import { getShortcutDisplay } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 
 export function BranchPicker({
@@ -91,6 +93,16 @@ export function BranchPicker({
     await createMutation.mutateAsync(branchName)
   }
 
+  useShortcutAction(
+    'branch-picker',
+    useCallback(() => {
+      if (disabled) return
+      setOpen((previous) => !previous)
+    }, [disabled])
+  )
+
+  const shortcutHint = getShortcutDisplay('branch-picker')
+
   const trigger = (
     <PopoverTrigger asChild>
       <Button
@@ -125,7 +137,17 @@ export function BranchPicker({
           <TooltipContent>Commit or stash changes before switching branches</TooltipContent>
         </Tooltip>
       ) : (
-        trigger
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex">{trigger}</span>
+          </TooltipTrigger>
+          <TooltipContent>
+            Switch branch{' '}
+            <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">
+              {shortcutHint}
+            </kbd>
+          </TooltipContent>
+        </Tooltip>
       )}
 
       <PopoverContent className="w-72 p-0" align="end">

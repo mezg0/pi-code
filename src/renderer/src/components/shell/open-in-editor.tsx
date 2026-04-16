@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronDownIcon, CheckIcon, FolderOpenIcon, CodeIcon } from 'lucide-react'
-import { useHotkey } from '@tanstack/react-hotkeys'
 
 import { Button } from '@/components/ui/button'
 import { ButtonGroup, ButtonGroupSeparator } from '@/components/ui/button-group'
@@ -12,7 +11,8 @@ import {
   DropdownMenuShortcut
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { getShortcutDisplay, SHORTCUTS } from '@/lib/shortcuts'
+import { useShortcutAction } from '@/lib/shortcut-actions'
+import { getShortcutDisplay } from '@/lib/shortcuts'
 import { getAvailableEditors, getNativeCapabilities, openInEditor } from '@/lib/native'
 import type { EditorId } from '@pi-code/shared/editor'
 import { EDITORS } from '@pi-code/shared/editor'
@@ -160,10 +160,12 @@ export function OpenInEditor({ cwd }: { cwd: string | undefined }): React.JSX.El
   )
 
   // Keyboard shortcut
-  useHotkey(
-    SHORTCUTS['open-in-editor'].keys,
+  useShortcutAction(
+    'open-in-editor',
     useCallback(() => openEditor(null), [openEditor]),
-    { enabled: Boolean(cwd && effectiveEditor) }
+    {
+      enabled: Boolean(cwd && effectiveEditor)
+    }
   )
 
   // Don't render if native editor access is unavailable, no editors are available, or no cwd

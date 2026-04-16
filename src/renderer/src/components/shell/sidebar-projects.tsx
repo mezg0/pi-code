@@ -68,6 +68,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { GitBranch, GitPRStatus, Project, Session, SessionStatus } from '@/lib/sessions'
 import { createGitWorktree, listGitBranches } from '@/lib/git'
+import { createWorktreeSession } from '@/lib/worktree'
 import type { SessionGroup } from '@/lib/workspace'
 
 const BUSY_STATUSES = new Set<SessionStatus>(['queued', 'starting', 'running', 'stopping'])
@@ -221,7 +222,12 @@ export function SidebarProjects({
               </Link>
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="right">App settings</TooltipContent>
+          <TooltipContent side="right">
+            App settings{' '}
+            <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">
+              {getShortcutDisplay('open-settings')}
+            </kbd>
+          </TooltipContent>
         </Tooltip>
       </SidebarFooter>
 
@@ -304,16 +310,8 @@ function NewSessionButton({
   async function handleWorktreeFromBranch(branch: string): Promise<void> {
     setCreating(true)
     try {
-      // Always create a fresh branch so the base branch stays available
-      const suffix = Math.random().toString(36).slice(2, 7)
-      const newBranch = `${branch}-wt-${suffix}`
-
-      const result = await createGitWorktree(project.repoPath, branch, newBranch)
+      await createWorktreeSession(project, branch, onCreateSession)
       setMenuOpen(false)
-      await onCreateSession(project, {
-        branch: newBranch,
-        worktreePath: result.path
-      })
     } catch (err) {
       alert(`Failed to create worktree: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
@@ -383,6 +381,11 @@ function NewSessionButton({
             New session{' '}
             <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">
               {getShortcutDisplay('new-session')}
+            </kbd>
+            <br />
+            New worktree session{' '}
+            <kbd className="ml-1.5 inline-flex font-sans text-[11px] opacity-60">
+              {getShortcutDisplay('new-worktree-session')}
             </kbd>
             <br />
             <span className="text-[10px] opacity-60">Right-click for worktree options</span>

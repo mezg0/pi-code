@@ -1,15 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
-import { detectPlatform } from '@tanstack/hotkeys'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
   ArrowLeftIcon,
-  ArrowUpIcon,
   CheckCircle2Icon,
   ChevronRightIcon,
-  CommandIcon,
   CopyIcon,
   EyeIcon,
   EyeOffIcon,
@@ -30,44 +27,22 @@ import {
   XCircleIcon
 } from 'lucide-react'
 
-import {
-  ModelSelector as ModelSelectorRoot,
-  ModelSelectorContent,
-  ModelSelectorEmpty,
-  ModelSelectorGroup,
-  ModelSelectorInput,
-  ModelSelectorItem,
-  ModelSelectorList,
-  ModelSelectorName,
-  ModelSelectorTrigger
-} from '@/components/ai-elements/model-selector'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import {
-  buildShortcutLabel,
-  loadModelShortcuts,
-  removeModelShortcut,
-  setModelShortcut,
-  SHORTCUT_SLOTS,
-  type ModelShortcut,
-  type ModelShortcutMap
-} from '@/lib/model-shortcuts'
+import { ShortcutsCheatsheetContent } from './shortcuts-cheatsheet'
 import {
   getAppSettings,
   listSessions,
   updateAppSettings,
   updateSession,
   type AppSettings,
-  type ModelInfo,
   type PermissionMode,
   type Session
 } from '@/lib/sessions'
-import { sessionKeys } from '@/lib/query-keys'
-import { useSessionAvailableModels, useSessionRuntimeState } from '@/lib/session-runtime-query'
 import {
   listAuthProviders,
   loginAuthProvider,
@@ -81,26 +56,17 @@ import type { AuthProviderInfo } from '@pi-code/shared/session'
 type SettingsSection =
   | 'permissions'
   | 'api-keys'
-  | 'model-shortcuts'
+  | 'keyboard-shortcuts'
   | 'remote-access'
   | 'archived-chats'
 
 const NAV_ITEMS: { id: SettingsSection; label: string; icon: React.ElementType }[] = [
   { id: 'permissions', label: 'Permissions', icon: ShieldQuestionIcon },
   { id: 'api-keys', label: 'API Keys', icon: KeyRoundIcon },
-  { id: 'model-shortcuts', label: 'Model Shortcuts', icon: KeyboardIcon },
+  { id: 'keyboard-shortcuts', label: 'Keyboard Shortcuts', icon: KeyboardIcon },
   { id: 'remote-access', label: 'Remote Access', icon: WifiIcon },
   { id: 'archived-chats', label: 'Archived Chats', icon: ArchiveIcon }
 ]
-
-function formatProviderLabel(provider: string): string {
-  switch (provider) {
-    case 'fireworks-ai':
-      return 'Fireworks'
-    default:
-      return provider
-  }
-}
 
 export function SettingsView(): React.JSX.Element {
   const [activeSection, setActiveSection] = useState<SettingsSection | null>('permissions')
@@ -109,7 +75,7 @@ export function SettingsView(): React.JSX.Element {
     <>
       {activeSection === 'permissions' && <PermissionsSection />}
       {activeSection === 'api-keys' && <ApiKeysSection />}
-      {activeSection === 'model-shortcuts' && <ModelShortcutsSection />}
+      {activeSection === 'keyboard-shortcuts' && <KeyboardShortcutsSection />}
       {activeSection === 'remote-access' && <RemoteAccessSection />}
       {activeSection === 'archived-chats' && <ArchivedChatsSection />}
     </>
@@ -409,315 +375,20 @@ function ApiKeysSection(): React.JSX.Element {
   )
 }
 
-// ─── Model Shortcut Kbd ──────────────────────────────────────────────────────
+// ─── Keyboard Shortcuts Section ──────────────────────────────────────────────
 
-const isMac = detectPlatform() === 'mac'
-
-/**
- * Renders a model shortcut key combo (e.g. ⌘⇧1) with proper icons for
- * modifier keys instead of Unicode text characters.
- */
-function ModelShortcutKbd({
-  slot,
-  size = 'md'
-}: {
-  slot: string
-  size?: 'sm' | 'md'
-}): React.JSX.Element {
-  const isSmall = size === 'sm'
-  const iconSize = isSmall ? 'size-2.5' : 'size-3'
-  const textSize = isSmall ? 'text-[10px]' : 'text-[11px]'
-  const gap = isSmall ? 'gap-0.5' : 'gap-[3px]'
-  const padding = isSmall ? 'px-1 py-px' : 'px-1.5 py-0.5'
-
-  return (
-    <kbd
-      className={`inline-flex shrink-0 items-center ${gap} rounded-sm border border-border/60 bg-muted/80 ${padding} ${textSize} leading-none text-muted-foreground shadow-[0_1px_0_0_rgba(0,0,0,0.08)]`}
-    >
-      {isMac ? (
-        <CommandIcon className={iconSize} />
-      ) : (
-        <span className="font-sans font-medium">Ctrl</span>
-      )}
-      {isMac ? (
-        <ArrowUpIcon className={iconSize} strokeWidth={2.5} />
-      ) : (
-        <span className="font-sans font-medium">Shift</span>
-      )}
-      <span className="font-sans font-semibold">{slot}</span>
-    </kbd>
-  )
-}
-
-// ─── Model Shortcuts Section ─────────────────────────────────────────────────
-
-function ModelShortcutsSection(): React.JSX.Element {
-  const [shortcuts, setShortcuts] = useState<ModelShortcutMap>(() => loadModelShortcuts())
-
-  // The slot currently being assigned (null = none)
-  const [assigningSlot, setAssigningSlot] = useState<string | null>(null)
-  // For the thinking level picker after model selection
-  const [pendingAssignment, setPendingAssignment] = useState<{
-    slot: string
-    model: ModelInfo
-  } | null>(null)
-
-  const sessionsQuery = useQuery({
-    queryKey: sessionKeys.list(),
-    queryFn: () => listSessions(),
-    staleTime: 30_000
-  })
-
-  const activeSessionId = sessionsQuery.data?.find((session) => !session.archived)?.id
-  const hasSession = Boolean(activeSessionId)
-  const availableModelsQuery = useSessionAvailableModels(activeSessionId)
-  const runtimeStateQuery = useSessionRuntimeState(activeSessionId)
-  const models = availableModelsQuery.data ?? []
-  const thinkingLevels = runtimeStateQuery.data?.availableThinkingLevels ?? []
-  const loadingModels =
-    sessionsQuery.isPending ||
-    (hasSession && (availableModelsQuery.isPending || runtimeStateQuery.isPending))
-
-  function handleModelSelect(slot: string, model: ModelInfo): void {
-    if (model.reasoning && thinkingLevels.length > 1) {
-      // Show thinking level picker
-      setPendingAssignment({ slot, model })
-      setAssigningSlot(null)
-    } else {
-      // No thinking level needed — save immediately
-      const shortcut: ModelShortcut = {
-        provider: model.provider,
-        modelId: model.id,
-        thinkingLevel: null,
-        label: buildShortcutLabel(model.id, null)
-      }
-      setModelShortcut(slot, shortcut)
-      setShortcuts(loadModelShortcuts())
-      setAssigningSlot(null)
-    }
-  }
-
-  function handleThinkingSelect(level: string | null): void {
-    if (!pendingAssignment) return
-    const { slot, model } = pendingAssignment
-    const shortcut: ModelShortcut = {
-      provider: model.provider,
-      modelId: model.id,
-      thinkingLevel: level,
-      label: buildShortcutLabel(model.id, level)
-    }
-    setModelShortcut(slot, shortcut)
-    setShortcuts(loadModelShortcuts())
-    setPendingAssignment(null)
-  }
-
-  function handleRemove(slot: string): void {
-    removeModelShortcut(slot)
-    setShortcuts(loadModelShortcuts())
-  }
-
-  const providers = [...new Set(models.map((m) => m.provider))]
-  const assignedSlots = SHORTCUT_SLOTS.filter((slot) => shortcuts[slot])
-  const nextAvailableSlot = SHORTCUT_SLOTS.find((slot) => !shortcuts[slot])
-
+function KeyboardShortcutsSection(): React.JSX.Element {
   return (
     <ScrollArea className="h-full">
-      <div className="mx-auto max-w-2xl space-y-8 p-6 md:p-8">
+      <div className="mx-auto max-w-3xl space-y-6 p-6 md:p-8">
         <div className="space-y-1">
-          <h2 className="text-base font-semibold">Model Shortcuts</h2>
+          <h2 className="text-base font-semibold">Keyboard Shortcuts</h2>
           <p className="text-sm text-muted-foreground">
-            Switch models and thinking levels with keyboard shortcuts.
+            Every shortcut available in the app. Defaults are hard-coded for v1; remapping will come
+            in a future release.
           </p>
         </div>
-
-        {!hasSession && !loadingModels && (
-          <div className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-3">
-            <p className="text-sm text-muted-foreground">
-              Open a session to assign models to shortcuts. Previously configured shortcuts will
-              still work.
-            </p>
-          </div>
-        )}
-
-        {loadingModels && (
-          <div className="flex items-center gap-2 py-4">
-            <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Loading models…</span>
-          </div>
-        )}
-
-        {/* Thinking level picker — shown inline after model selection */}
-        {pendingAssignment && (
-          <div className="rounded-lg border border-border bg-card px-4 py-4">
-            <div className="mb-3 flex items-center gap-2">
-              <ModelShortcutKbd slot={pendingAssignment.slot} />
-              <span className="text-sm text-muted-foreground">→</span>
-              <span className="text-sm font-medium">{pendingAssignment.model.id}</span>
-            </div>
-            <p className="mb-3 text-xs text-muted-foreground">Choose a thinking level</p>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {thinkingLevels.map((level) => (
-                <Button
-                  key={level}
-                  variant="outline"
-                  size="xs"
-                  className="capitalize"
-                  onClick={() => handleThinkingSelect(level)}
-                >
-                  {level}
-                </Button>
-              ))}
-              <Separator orientation="vertical" className="mx-1 !h-4" />
-              <Button
-                variant="ghost"
-                size="xs"
-                className="text-muted-foreground"
-                onClick={() => handleThinkingSelect(null)}
-              >
-                No preference
-              </Button>
-              <Button
-                variant="ghost"
-                size="xs"
-                className="text-muted-foreground"
-                onClick={() => setPendingAssignment(null)}
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Assigned shortcuts */}
-        {assignedSlots.length > 0 && (
-          <div className="space-y-1.5">
-            {assignedSlots.map((slot) => {
-              const shortcut = shortcuts[slot]!
-              const isAssigning = assigningSlot === slot
-
-              return (
-                <div
-                  key={slot}
-                  className="group flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5"
-                >
-                  <ModelShortcutKbd slot={slot} />
-
-                  <span className="min-w-0 flex-1 truncate text-sm">{shortcut.label}</span>
-
-                  <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                    {hasSession && !pendingAssignment && (
-                      <ModelSelectorRoot
-                        open={isAssigning}
-                        onOpenChange={(open) => setAssigningSlot(open ? slot : null)}
-                      >
-                        <ModelSelectorTrigger asChild>
-                          <Button variant="ghost" size="xs" className="text-muted-foreground">
-                            Change
-                          </Button>
-                        </ModelSelectorTrigger>
-                        <ModelSelectorContent title={`Reassign shortcut ${slot}`}>
-                          <ModelSelectorInput placeholder="Search models…" />
-                          <ModelSelectorList>
-                            <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
-                            {providers.map((provider) => (
-                              <ModelSelectorGroup
-                                heading={formatProviderLabel(provider)}
-                                key={provider}
-                              >
-                                {models
-                                  .filter((m) => m.provider === provider)
-                                  .map((model) => (
-                                    <ModelSelectorItem
-                                      key={`${model.provider}:${model.id}`}
-                                      value={`${model.provider} ${model.id}`}
-                                      onSelect={() => handleModelSelect(slot, model)}
-                                    >
-                                      <ModelSelectorName>{model.id}</ModelSelectorName>
-                                      {model.reasoning ? (
-                                        <span className="text-[10px] text-muted-foreground">
-                                          reasoning
-                                        </span>
-                                      ) : null}
-                                    </ModelSelectorItem>
-                                  ))}
-                              </ModelSelectorGroup>
-                            ))}
-                          </ModelSelectorList>
-                        </ModelSelectorContent>
-                      </ModelSelectorRoot>
-                    )}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          className="text-muted-foreground hover:text-destructive"
-                          onClick={() => handleRemove(slot)}
-                        >
-                          <Trash2Icon className="size-3" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Remove shortcut</TooltipContent>
-                    </Tooltip>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {/* Empty state */}
-        {assignedSlots.length === 0 && !loadingModels && (
-          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border py-10 text-center">
-            <KeyboardIcon className="size-7 text-muted-foreground/30" />
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-muted-foreground">No shortcuts configured</p>
-              <p className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
-                Use <ModelShortcutKbd slot="1" size="sm" /> –{' '}
-                <ModelShortcutKbd slot="9" size="sm" /> to switch models instantly
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Add shortcut button */}
-        {hasSession && nextAvailableSlot && !pendingAssignment && (
-          <ModelSelectorRoot
-            open={assigningSlot === nextAvailableSlot}
-            onOpenChange={(open) => setAssigningSlot(open ? nextAvailableSlot : null)}
-          >
-            <ModelSelectorTrigger asChild>
-              <Button variant="outline" size="sm" className="w-full gap-2 text-muted-foreground">
-                Add shortcut
-                <ModelShortcutKbd slot={nextAvailableSlot} size="sm" />
-              </Button>
-            </ModelSelectorTrigger>
-            <ModelSelectorContent title={`Assign model to shortcut ${nextAvailableSlot}`}>
-              <ModelSelectorInput placeholder="Search models…" />
-              <ModelSelectorList>
-                <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
-                {providers.map((provider) => (
-                  <ModelSelectorGroup heading={formatProviderLabel(provider)} key={provider}>
-                    {models
-                      .filter((m) => m.provider === provider)
-                      .map((model) => (
-                        <ModelSelectorItem
-                          key={`${model.provider}:${model.id}`}
-                          value={`${model.provider} ${model.id}`}
-                          onSelect={() => handleModelSelect(nextAvailableSlot, model)}
-                        >
-                          <ModelSelectorName>{model.id}</ModelSelectorName>
-                          {model.reasoning ? (
-                            <span className="text-[10px] text-muted-foreground">reasoning</span>
-                          ) : null}
-                        </ModelSelectorItem>
-                      ))}
-                  </ModelSelectorGroup>
-                ))}
-              </ModelSelectorList>
-            </ModelSelectorContent>
-          </ModelSelectorRoot>
-        )}
+        <ShortcutsCheatsheetContent />
       </div>
     </ScrollArea>
   )

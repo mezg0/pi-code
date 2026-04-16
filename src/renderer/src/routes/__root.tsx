@@ -7,13 +7,16 @@ import {
   useRouter
 } from '@tanstack/react-router'
 import type { QueryClient } from '@tanstack/react-query'
-import { useHotkey } from '@tanstack/react-hotkeys'
+import { useHotkeys, type UseHotkeyDefinition } from '@tanstack/react-hotkeys'
 
 import { useWorkspaceState } from '@/hooks/use-workspace-state'
-import { SHORTCUTS } from '@/lib/shortcuts'
-import { loadWorkspace } from '@/lib/workspace'
+import { SHORTCUTS, type ShortcutId } from '@/lib/shortcuts'
+import { emitAction, type ShortcutActionId } from '@/lib/shortcut-actions'
+import { loadWorkspace, splitSessionsForSidebar } from '@/lib/workspace'
 import { AppShell } from '@/components/shell/app-shell'
+import { ShortcutsCheatsheetDialog } from '@/components/shell/shortcuts-cheatsheet'
 import { getGitStatus, removeGitWorktree } from '@/lib/git'
+import { createWorktreeSession, resolveCurrentLocalBranch } from '@/lib/worktree'
 import { pickAndAddProject } from '@/lib/native'
 import {
   createSession,
@@ -330,20 +333,180 @@ function RootComponent(): React.JSX.Element {
   const activeProject = workspace.projects.find((p) => p.repoPath === activeSession?.repoPath)
   const firstProject = workspace.projects[0]
 
-  useHotkey(
-    SHORTCUTS['new-session'].keys,
-    useCallback(() => {
-      const project = activeProject ?? firstProject
-      if (project) void handleCreateSession(project)
-    }, [activeProject, firstProject, handleCreateSession])
+  // Cheatsheet dialog state. `Mod+K` opens it in "palette placeholder" mode
+  // so the binding is taught now; `Mod+/` / `?` open the plain cheatsheet.
+  const [cheatsheetState, setCheatsheetState] = useState<
+    { open: false } | { open: true; mode: 'shortcuts' | 'palette-placeholder' }
+  >({ open: false })
+
+  const openCheatsheet = useCallback((mode: 'shortcuts' | 'palette-placeholder') => {
+    setCheatsheetState({ open: true, mode })
+  }, [])
+
+  const handleCheatsheetOpenChange = useCallback((open: boolean) => {
+    setCheatsheetState((prev) =>
+      open ? (prev.open ? prev : { open: true, mode: 'shortcuts' }) : { open: false }
+    )
+  }, [])
+
+  // Ordered list of visible sessions for keyboard navigation. Mirrors
+  // `SidebarProjects` ordering: pinned first, then each project group's
+  // non-archived sessions.
+  const orderedSessions = useMemo<Session[]>(() => {
+    const { pinnedSessions, projectGroups } = splitSessionsForSidebar(
+      workspace.projects,
+      workspace.sessions
+    )
+    const flat: Session[] = [...pinnedSessions]
+    for (const group of projectGroups) {
+      for (const session of group.sessions) {
+        if (!session.archived) flat.push(session)
+      }
+    }
+    return flat
+  }, [workspace.projects, workspace.sessions])
+
+  const navigateToSession = useCallback(
+    (session: Session | undefined) => {
+      if (!session) return
+      void navigate({
+        to: '/sessions/$sessionId/overview',
+        params: { sessionId: session.id }
+      })
+    },
+    [navigate]
   )
 
-  useHotkey(
-    SHORTCUTS['open-settings'].keys,
-    useCallback(() => {
-      void navigate({ to: '/settings' })
-    }, [navigate])
+  const goToRelativeSession = useCallback(
+    (delta: 1 | -1) => {
+      if (orderedSessions.length === 0) return
+      const currentIndex = orderedSessions.findIndex((s) => s.id === activeSessionId)
+      const base = currentIndex === -1 ? (delta === 1 ? -1 : 0) : currentIndex
+      const nextIndex = (base + delta + orderedSessions.length) % orderedSessions.length
+      navigateToSession(orderedSessions[nextIndex])
+    },
+    [activeSessionId, navigateToSession, orderedSessions]
   )
+
+  const jumpToSessionSlot = useCallback(
+    (slot: number) => {
+      const session = orderedSessions[slot - 1]
+      navigateToSession(session)
+    },
+    [navigateToSession, orderedSessions]
+  )
+
+  // Worktree creation must not fire twice in parallel from a key repeat.
+  const worktreeCreationInFlightRef = useRef(false)
+  const handleNewWorktreeSession = useCallback(async (): Promise<void> => {
+    if (worktreeCreationInFlightRef.current) return
+    const project = activeProject ?? firstProject
+    if (!project) return
+
+    worktreeCreationInFlightRef.current = true
+    try {
+      const baseBranch = await resolveCurrentLocalBranch(project.repoPath)
+      await createWorktreeSession(project, baseBranch, async (proj, options) => {
+        await handleCreateSession(proj, options)
+      })
+    } catch (err) {
+      alert(`Failed to create worktree: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      worktreeCreationInFlightRef.current = false
+    }
+  }, [activeProject, firstProject, handleCreateSession])
+
+  // Wire every shortcut in the registry to a callback. Anything session-scoped
+  // dispatches through the action bus so the active component (session view,
+  // plan-mode toggle, etc.) can own the actual behaviour.
+  const sessionDispatch = useCallback(
+    (id: ShortcutActionId) => () => {
+      emitAction(id)
+    },
+    []
+  )
+
+  const hotkeyBindings = useMemo<UseHotkeyDefinition[]>(() => {
+    const hasSession = Boolean(activeSessionId)
+    const bind = (
+      id: ShortcutId,
+      callback: () => void,
+      extraOptions?: { enabled?: boolean }
+    ): UseHotkeyDefinition => ({
+      hotkey: SHORTCUTS[id].keys,
+      callback,
+      options: extraOptions
+    })
+
+    return [
+      // Global
+      bind('command-palette', () => openCheatsheet('palette-placeholder')),
+      bind('show-shortcuts', () => openCheatsheet('shortcuts')),
+      bind('toggle-sidebar', sessionDispatch('toggle-sidebar')),
+      bind('new-session', () => {
+        const project = activeProject ?? firstProject
+        if (project) void handleCreateSession(project)
+      }),
+      bind('new-worktree-session', () => {
+        void handleNewWorktreeSession()
+      }),
+      bind('open-settings', () => {
+        void navigate({ to: '/settings' })
+      }),
+
+      // Navigation
+      bind('next-session', () => goToRelativeSession(1)),
+      bind('prev-session', () => goToRelativeSession(-1)),
+      bind('jump-session-1', () => jumpToSessionSlot(1)),
+      bind('jump-session-2', () => jumpToSessionSlot(2)),
+      bind('jump-session-3', () => jumpToSessionSlot(3)),
+      bind('jump-session-4', () => jumpToSessionSlot(4)),
+      bind('jump-session-5', () => jumpToSessionSlot(5)),
+      bind('jump-session-6', () => jumpToSessionSlot(6)),
+      bind('jump-session-7', () => jumpToSessionSlot(7)),
+      bind('jump-session-8', () => jumpToSessionSlot(8)),
+      bind('jump-session-9', () => jumpToSessionSlot(9)),
+
+      // Session (bus-dispatched; handler owned by the conversation / shell)
+      bind('stop-response', sessionDispatch('stop-response'), { enabled: hasSession }),
+      bind('open-in-editor', sessionDispatch('open-in-editor'), { enabled: hasSession }),
+      bind('toggle-panel', sessionDispatch('toggle-panel'), { enabled: hasSession }),
+      bind('focus-input', sessionDispatch('focus-input'), { enabled: hasSession }),
+      bind('branch-picker', sessionDispatch('branch-picker'), { enabled: hasSession }),
+      bind('open-commit', sessionDispatch('open-commit'), { enabled: hasSession }),
+      bind('scroll-to-bottom', sessionDispatch('scroll-to-bottom'), { enabled: hasSession }),
+
+      // Modes
+      bind('toggle-plan-mode', sessionDispatch('toggle-plan-mode'), { enabled: hasSession }),
+      bind('cycle-permission-mode', sessionDispatch('cycle-permission-mode'), {
+        enabled: hasSession
+      }),
+      bind('cycle-thinking-level', sessionDispatch('cycle-thinking-level'), {
+        enabled: hasSession
+      }),
+      bind('open-model-picker', sessionDispatch('open-model-picker'), { enabled: hasSession }),
+
+      // Tool tabs
+      bind('tab-plan', sessionDispatch('tab-plan'), { enabled: hasSession }),
+      bind('tab-git', sessionDispatch('tab-git'), { enabled: hasSession }),
+      bind('tab-terminal', sessionDispatch('tab-terminal'), { enabled: hasSession }),
+      bind('tab-files', sessionDispatch('tab-files'), { enabled: hasSession }),
+      bind('tab-browser', sessionDispatch('tab-browser'), { enabled: hasSession })
+    ]
+  }, [
+    activeProject,
+    activeSessionId,
+    firstProject,
+    goToRelativeSession,
+    handleCreateSession,
+    handleNewWorktreeSession,
+    jumpToSessionSlot,
+    navigate,
+    openCheatsheet,
+    sessionDispatch
+  ])
+
+  useHotkeys(hotkeyBindings)
 
   return (
     <>
@@ -393,6 +556,12 @@ function RootComponent(): React.JSX.Element {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ShortcutsCheatsheetDialog
+        open={cheatsheetState.open}
+        mode={cheatsheetState.open ? cheatsheetState.mode : 'shortcuts'}
+        onOpenChange={handleCheatsheetOpenChange}
+      />
     </>
   )
 }
